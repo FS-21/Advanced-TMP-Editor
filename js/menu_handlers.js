@@ -450,7 +450,7 @@ function setupFileMenu() {
             closeAllMenus();
             if (!state.tiles || state.tiles.length === 0) return;
 
-            const confirmed = await showConfirm(t('dlg_confirm_title'), t('msg_confirm_close_shp') || "Are you sure? Any unsaved changes will be lost.");
+            const confirmed = await showConfirm(t('dlg_confirm_title'), t('msg_confirm_close_tmp') || "Are you sure? Any unsaved changes will be lost.");
             if (confirmed) {
                 state.tiles = [];
                 state.tmpData = null;
