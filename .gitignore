@@ -24,8 +24,11 @@ env/
 
 # Temp/Backups
 .syntax_check.js
+translation_audit.txt
 scratch/
 borrable/
+*.txt
+!README.md
 *.bak
 *.tmp
 *.log
