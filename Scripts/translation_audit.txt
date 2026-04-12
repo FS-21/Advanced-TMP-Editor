@@ -1,0 +1,8 @@
+Languages with missing keys: 0
+Missing 'de' keys: 0
+Missing 'en' keys: 0
+Missing 'es' keys: 0
+Missing 'fr' keys: 0
+Missing 'ru' keys: 0
+Missing 'zh-hans' keys: 0
+Missing 'zh-hant' keys: 0

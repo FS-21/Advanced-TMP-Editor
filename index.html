@@ -1,0 +1,2427 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>const APP_VERSION = 'v1.0';</script>
+    <script>
+        window.CnCReloadedMode = true;
+        document.addEventListener("DOMContentLoaded", () => {
+            // Detect language early for Splash Screen
+            const savedLang = localStorage.getItem('tmp_editor_lang') || navigator.language.split('-')[0] || 'en';
+            const currentLang = ['en', 'es', 'ru', 'de', 'fr', 'pt', 'zh-hans', 'zh-hant'].includes(savedLang) ? savedLang : 'en';
+
+            if (!window.CnCReloadedMode) {
+                const mnu = document.getElementById('palMenuCnCReloadedContainer');
+                if (mnu) mnu.remove();
+            }
+        });
+    </script>
+    <title>Advanced TMP Editor</title>
+    <!-- PWA INLINED MANIFEST -->
+    <link rel="manifest"
+        href='data:application/json,{"name":"Advanced TMP Editor","short_name":"A TMP Editor","description":"Advanced TMP Tile Set Editor for Tiberian Sun & Red Alert 2","start_url":"./","display":"standalone","background_color":"#0d0e12","theme_color":"#00ff9d","icons":[{"src":"data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHJ4PSIxNCIgZmlsbD0iIzBkMGUxMiIvPjx0ZXh0IHg9IjMyIiB5PSIyNiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iI2ZmZmZmZiIgZm9udC1mYW1pbHk9IlZlcmRhbmEsIHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSI5NTAiIGZvbnQtc2l6ZT0iMjIiIGxldHRlci1zcGFjaW5nPSItMSI+QVRFPC90ZXh0PjxnIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxnIHN0cm9rZT0iIzAwZmY5ZCIgc3Ryb2tlLXdpZHRoPSIwLjgiIG9wYWNpdHk9IjAuNSI+PHBhdGggZD0iTTE4IDM3TDQ2IDUxIE0xMSA0MC41TDM5IDU0LjVBNTI1IDMzLjVUNTMgNDcuNSIgLz48cGF0aCBkPSJNNDYgMzdMMTggNTEgTTUzIDQwLjVMMjUgNTQuNSBNMzkgMzMuNUwxMSA0Ny41IiAvPjwvZz48cGF0aCBkPSJNMzIgMzBWNTggTTQgNDRINTAiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIxLjIiIG9wYWNpdHk9IjAuOCIvPjxnIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIxLjgiIGZpbGw9IiNmZmZmZmYxNSI+PHBhdGggZD0iTTM5IDMzLjVMNDYgMzdMMzkgNDAuNUwzMiAzN1oiIC8+PHBhdGggZD0iTTQ2IDM3TDUzIDQwLjVMNDYgNDRMMzkgNDAuNVoiIC8+PHBhdGggZD0iTTM5IDQ3LjVMNDYgNTFMMzkgNTQuNUwzMiA1MVoiIC8+PC9nPjxwYXRoIGQ9Ik0zMiAzMEw2MCA0NEwzMiA1OEw0IDQ0TDMyIDMwWiIgc3Ryb2tlPSIjMDBmZjlkIiBzdHJva2Utd2lkdGg9IjIuNSIvPjwvZz48L3N2Zz4=","sizes":"any","type":"image/svg+xml","purpose":"any"}],"file_handlers":[{"action":"./advanced_tmp_editor.html","accept":{"application/x-wwn-tmp":[".tem",".sno",".urb",".des",".ubn",".lun"]},"icons":[{"src":"data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHJ4PSIxNCIgZmlsbD0iIzBkMGUxMiIvPjx0ZXh0IHg9IjMyIiB5PSIyNiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iI2ZmZmZmZiIgZm9udC1mYW1pbHk9IlZlcmRhbmEsIHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSI5NTAiIGZvbnQtc2l6ZT0iMjIiIGxldHRlci1zcGFjaW5nPSItMSI+QVRFPC90ZXh0PjxnIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxnIHN0cm9rZT0iIzAwZmY5ZCIgc3Ryb2tlLXdpZHRoPSIwLjgiIG9wYWNpdHk9IjAuNSI+PHBhdGggZD0iTTE4IDM3TDQ2IDUxIE0xMSA0MC41TDM5IDU0LjVBNTI1IDMzLjVUNTMgNDcuNSIgLz48cGF0aCBkPSJNNDYgMzdMMTggNTEgTTUzIDQwLjVMMjUgNTQuNSBNMzkgMzMuNUwxMSA0Ny41IiAvPjwvZz48cGF0aCBkPSJNMzIgMzBWNTggTTQgNDRINTAiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIxLjIiIG9wYWNpdHk9IjAuOCIvPjxnIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIxLjgiIGZpbGw9IiNmZmZmZmYxNSI+PHBhdGggZD0iTTM5IDMzLjVMNDYgMzdMMzkgNDAuNUwzMiAzN1oiIC8+PHBhdGggZD0iTTQ2IDM3TDUzIDQwLjVMNDYgNDRMMzkgNDAuNVoiIC8+PHBhdGggZD0iTTM5IDQ3LjVMNDYgNTFMMzkgNTQuNUwzMiA1MVoiIC8+PC9nPjxwYXRoIGQ9Ik0zMiAzMEw2MCA0NEwzMiA1OEw0IDQ0TDMyIDMwWiIgc3Ryb2tlPSIjMDBmZjlkIiBzdHJva2Utd2lkdGg9IjIuNSIvPjwvZz48L3N2Zz4=","sizes":"any","type":"image/svg+xml"}],"launch_type":"single-client"}]}'>
+    <meta name="theme-color" content="#0d0e12">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                    console.warn('PWA Features require HTTPS or localhost. Current protocol:', window.location.protocol);
+                    return;
+                }
+                const swPath = 'sw.js';
+                navigator.serviceWorker.register(swPath)
+                    .then(reg => console.log('ServiceWorker registered:', reg.scope))
+                    .catch(err => console.error('ServiceWorker registration failed:', err));
+            });
+        }
+    </script>
+    <!-- EMBEDDED DYNAMIC SVG FAVICON (Master Edition) -->
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg width='64' height='64' viewBox='0 0 64 64' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='64' height='64' rx='14' fill='%230d0e12'/%3E%3Ctext x='32' y='26' text-anchor='middle' fill='%23ffffff' font-family='Verdana, sans-serif' font-weight='950' font-size='22' letter-spacing='-1'%3EATE%3C/text%3E%3Cg stroke-linejoin='round'%3E%3Cg stroke='%2300ff9d' stroke-width='0.8' opacity='0.5'%3E%3Cpath d='M18 37L46 51 M11 40.5L39 54.5 M25 33.5L53 47.5' /%3E%3Cpath d='M46 37L18 51 M53 40.5L25 54.5 M39 33.5L11 47.5' /%3E%3C/g%3E%3Cpath d='M32 30V58 M4 44H60' stroke='%23ffffff' stroke-width='1.2' opacity='0.8'/%3E%3Cg stroke='%23ffffff' stroke-width='1.8' fill='%23ffffff15'%3E%3Cpath d='M39 33.5L46 37L39 40.5L32 37Z' /%3E%3Cpath d='M46 37L53 40.5L46 44L39 40.5Z' /%3E%3Cpath d='M39 47.5L46 51L39 54.5L32 51Z' /%3E%3C/g%3E%3Cpath d='M32 30L60 44L32 58L4 44L32 30Z' stroke='%2300ff9d' stroke-width='2.5'/%3E%3C/g%3E%3C/svg%3E">
+    <script>document.title = `Advanced TMP Editor ${APP_VERSION || ''}`;</script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="refinements.css">
+    <style>
+        /* Professional Cells List Modernization */
+        #tilesList {
+            background: #111;
+        }
+
+        #tilesList .layer-item {
+            padding: 8px !important;
+            border: none !important;
+            display: flex !important;
+            align-items: center !important;
+            background: #1e1e1e;
+            box-sizing: border-box !important;
+            position: relative;
+            margin: 0 !important;
+            /* Gap handled by virtualization top offset */
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        #tilesList .layer-item:hover {
+            background: #2a2a2a;
+        }
+
+        #tilesList .layer-item.selected {
+            background: #223a4d !important;
+        }
+
+        #tilesList .layer-item.active {
+            background: #2a4d69 !important;
+            z-index: 2;
+        }
+
+        #tilesList .layer-item.dragging {
+            opacity: 0.4;
+        }
+
+        #tilesList .layer-item.drag-over {
+            border-top: 2px dashed #00ffaa !important;
+        }
+
+        #tilesList .layer-item.implant-target {
+            background-color: rgba(0, 255, 170, 0.2) !important;
+            box-shadow: inset 0 0 0 2px #00ffaa !important;
+        }
+
+        #tilesList .layer-preview-container {
+            background: transparent;
+            margin-right: 12px;
+            border-radius: 0;
+            /* No radius for pixel art feel */
+            flex-shrink: 0;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            image-rendering: pixelated;
+        }
+
+        #tilesList .layer-preview-container canvas {
+            image-rendering: pixelated;
+        }
+
+        #tilesList .layer-item-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: #ccc;
+            letter-spacing: 0.02em;
+            width: 30px;
+            flex: none;
+            display: flex;
+            align-items: center;
+        }
+
+        #tilesList .hooked-layer {
+            margin-left: 40px !important;
+            width: calc(100% - 40px) !important;
+            /* Heavily indented to look like it hangs from cell */
+            background: #161616 !important;
+            border-bottom-color: #151515 !important;
+            border-left: 3px solid #00a2ff !important;
+            border-right: 3px solid #00a2ff !important;
+            padding: 4px !important;
+            /* Always visible solid bright blue bar on both sides */
+        }
+
+        #tilesList .hooked-layer .layer-item-name {
+            width: 8px !important;
+            min-width: 8px !important;
+            flex: none !important;
+        }
+
+        #tilesList .hooked-layer .layer-preview-container {
+            padding-right: 8px !important;
+            margin-right: 0 !important;
+        }
+
+        #tilesList .active .layer-item-sublabel {
+            color: #fff;
+        }
+
+        #tilesList .selected .layer-item-sublabel {
+            color: #fff;
+        }
+
+        /* Intensity remains the same for selected/active for these hooked entries */
+        #tilesList .layer-item.selected.hooked-layer {
+            border-left: 3px solid #00a2ff !important;
+            border-right: 3px solid #00a2ff !important;
+            background: #25445d !important;
+        }
+
+        #tilesList .layer-item.active.hooked-layer {
+            border-left: 3px solid #00a2ff !important;
+            border-right: 3px solid #00a2ff !important;
+            background: #2a4d69 !important;
+        }
+
+        /* Base cells still show selection background, but no active border bar */
+        #tilesList .layer-item.active:not(.hooked-layer) {
+            border-left: none !important;
+        }
+
+        /* OVERLAPPING WARNINGS (MUST BE LAST TO OVERRIDE SELECTION/ACTIVE) */
+        #tilesList .layer-item.overlapping {
+            background-color: rgba(255, 255, 0, 0.4) !important;
+            border-left: 3px solid #ffff00 !important;
+            border-right: 1px solid #ffff00 !important;
+            color: #000 !important;
+        }
+
+        #tilesList .layer-item.overlapping .layer-item-name {
+            color: #000 !important;
+        }
+
+        #tilesList .layer-item.overlapping.selected,
+        #tilesList .layer-item.overlapping.active {
+            background-color: rgba(255, 255, 0, 0.8) !important;
+            border-left: 3px solid #ffff00 !important;
+            border-right: 3px solid #ffff00 !important;
+            box-shadow: inset 0 0 10px rgba(255, 255, 0, 0.3) !important;
+            color: #000 !important;
+        }
+
+        /* Override blue hooked-layer color for overlapping too */
+        #tilesList .layer-item.overlapping.hooked-layer.selected,
+        #tilesList .layer-item.overlapping.hooked-layer.active {
+            border-left-color: #ffff00 !important;
+            border-right-color: #ffff00 !important;
+        }
+
+        /* CRITICAL MISMATCH ERRORS (HIGHEST PRIORITY - OVERRIDES OVERLAP) */
+        #tilesList .layer-item.mismatch-error {
+            background-color: #6a0b0b !important;
+            border-left: 3px solid #ff4444 !important;
+            border-right: 1px solid #ff4444 !important;
+            /* Subtler unselected right border */
+        }
+
+        #tilesList .layer-item.mismatch-error.active,
+        #tilesList .layer-item.mismatch-error.selected {
+            background: linear-gradient(90deg, #ff0000 0%, #cc0000 30%, #4d0000 100%) !important;
+            border-left: 3px solid #ff0000 !important;
+            border-right: 3px solid #ff0000 !important;
+            box-shadow: inset 0 0 10px rgba(255, 0, 0, 0.4) !important;
+        }
+
+        /* Explicitly override the blue hooked-layer selection color */
+        #tilesList .layer-item.mismatch-error.hooked-layer.selected,
+        #tilesList .layer-item.mismatch-error.hooked-layer.active {
+            border-left-color: #ff0000 !important;
+            border-right-color: #ff0000 !important;
+            background: linear-gradient(90deg, #ff0000 0%, #cc0000 30%, #4d0000 100%) !important;
+        }
+
+        /* Collision warning for Data Table */
+        .data-table-row.overlapping {
+            background-color: rgba(255, 255, 0, 0.25) !important;
+        }
+
+        .data-table-row.overlapping td {
+            font-weight: 700 !important;
+        }
+
+        .data-table-row.mismatch-error {
+            background-color: #6a0b0b !important;
+        }
+
+        .data-table-row.mismatch-error td {
+            color: #ffcccc !important;
+        }
+
+        .data-table-row.mismatch-error.active,
+        .data-table-row.mismatch-error.selected {
+            background-color: #6a0b0b !important;
+            /* Keep same dark red for selection too */
+            box-shadow: inset 0 0 15px rgba(255, 0, 0, 0.3) !important;
+        }
+
+        .data-table-row.mismatch-error.active td,
+        .data-table-row.mismatch-error.selected td {
+            color: #fff !important;
+        }
+
+        .toolbar-secondary .btn-square {
+            width: 24px !important;
+            height: 24px !important;
+            font-size: 12px !important;
+            background-color: transparent !important;
+            border: 1px solid transparent !important;
+            background-size: 18px 18px !important;
+            background-repeat: no-repeat !important;
+            background-position: center !important;
+            border-radius: 4px !important;
+        }
+
+        .toolbar-secondary .btn-square:hover:not(:disabled) {
+            background-color: rgba(255, 255, 255, 0.1) !important;
+            border-color: #555 !important;
+        }
+
+        #btnAddTile {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'%3E%3C/path%3E%3Cpolyline points='14 2 14 8 20 8'%3E%3C/polyline%3E%3Cline x1='12' y1='11' x2='12' y2='17' stroke='%2348bb78'%3E%3C/line%3E%3Cline x1='9' y1='14' x2='15' y2='14' stroke='%2348bb78'%3E%3C/line%3E%3C/svg%3E") !important;
+        }
+
+        #btnNewExtra {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 3v5h10V3M7 21v-5h10v5' stroke='%2348bb78' /%3E%3Cline x1='12' y1='8' x2='12' y2='16' /%3E%3C/svg%3E") !important;
+        }
+
+        #btnDuplicateTile {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='9' width='11' height='11' rx='2' ry='2' /%3E%3Cpath d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1' /%3E%3C/svg%3E") !important;
+        }
+
+        #btnDeleteTile {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'%3E%3C/path%3E%3Cpolyline points='14 2 14 8 20 8'%3E%3C/polyline%3E%3Cline x1='9' y1='12' x2='15' y2='18' stroke='%23f56565'%3E%3C/line%3E%3Cline x1='15' y1='12' x2='9' y2='18' stroke='%23f56565'%3E%3C/line%3E%3C/svg%3E") !important;
+        }
+
+        #btnMoveTilesUp {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='5 14 12 7 19 14' /%3E%3Cline x1='12' y1='7' x2='12' y2='20' /%3E%3C/svg%3E") !important;
+        }
+
+        #btnMoveTilesDown {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='5 10 12 17 19 10' /%3E%3Cline x1='12' y1='17' x2='12' y2='4' /%3E%3C/svg%3E") !important;
+        }
+
+        .btn {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-main);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--border);
+        }
+
+        .btn.active {
+            background: var(--accent) !important;
+            color: #000 !important;
+            border-color: var(--accent) !important;
+            box-shadow: 0 0 8px rgba(0, 255, 170, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.3 !important;
+            cursor: not-allowed !important;
+            filter: grayscale(1);
+        }
+
+        .btn-primary {
+            background-color: var(--accent) !important;
+            color: #000 !important;
+            border-color: var(--accent) !important;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: #00cc88 !important;
+            box-shadow: 0 0 12px rgba(0, 255, 170, 0.4);
+        }
+
+        .btn-danger {
+            background-color: rgba(245, 101, 101, 0.2) !important;
+            color: #f56565 !important;
+            border: 1px solid #f56565 !important;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background-color: rgba(245, 101, 101, 0.3) !important;
+            color: #fff !important;
+        }
+
+        .notification-bar {
+            z-index: 5000 !important;
+            /* Higher than canvas but lower than tabs/menus */
+        }
+
+        /* Menu Icons */
+        .icon-tile-table {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='2' width='20' height='20' rx='3'%3E%3C/rect%3E%3Cpolyline points='8 15 12 11 8 7'%3E%3C/polyline%3E%3Cline x1='13' y1='17' x2='18' y2='17'%3E%3C/line%3E%3C/svg%3E") !important;
+        }
+
+        .icon-game-grid {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2L2 12L12 22L22 12L12 2Z' /%3E%3Cpath d='M7 7L17 17' opacity='0.5' /%3E%3Cpath d='M17 7L7 17' opacity='0.5' /%3E%3C/svg%3E") !important;
+        }
+
+        .icon-flat-cells {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2' /%3E%3Cline x1='3' y1='9' x2='21' y2='9' /%3E%3C/svg%3E") !important;
+        }
+
+        .icon-pixel-grid {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18' /%3E%3C/svg%3E") !important;
+        }
+
+        .icon-load-from,
+        .icon-import {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' /%3E%3Cpolyline points='12 17 12 11' /%3E%3Cpolyline points='9 14 12 17 15 14' /%3E%3C/svg%3E") !important;
+        }
+
+        .icon-save-to,
+        .icon-export {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' /%3E%3Cpolyline points='12 11 12 17' /%3E%3Cpolyline points='9 14 12 11 15 14' /%3E%3C/svg%3E") !important;
+        }
+
+        .icon-open {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' /%3E%3C/svg%3E") !important;
+        }
+
+        .icon-close-tmp {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' /%3E%3Cline x1='12' y1='12' x2='18' y2='18' stroke='%23ff0000' /%3E%3Cline x1='18' y1='12' x2='12' y2='18' stroke='%23ff0000' /%3E%3C/svg%3E") !important;
+            filter: none !important;
+        }
+
+        .icon-file-tmp {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' /%3E%3Cpolyline points='14 2 14 8 20 8' /%3E%3Ctext x='5' y='18' font-family='Arial' font-size='7' font-weight='900' fill='%23ffffff' style='font-size:7px; font-weight:900;'%3ETMP%3C/text%3E%3C/svg%3E") !important;
+            filter: none !important;
+        }
+
+        .icon-z-data {
+            filter: none !important;
+        }
+
+        .icon-bg {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Cpath d='M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z'/%3E%3C/svg%3E") !important;
+        }
+
+        .icon-move {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z' /%3E%3C/svg%3E") !important;
+        }
+
+        .toolbar-icon {
+            width: 18px;
+            height: 18px;
+            display: inline-block;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            filter: invert(1);
+            opacity: 0.8;
+            vertical-align: middle;
+        }
+
+        /* Context Menu Styles */
+        .context-menu {
+            position: fixed;
+            background: #252526;
+            border: 1px solid #454545;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+            z-index: 100000;
+            min-width: 230px;
+            padding: 5px 0;
+            border-radius: 6px;
+            font-size: 13px;
+            user-select: none;
+            color: #cccccc;
+        }
+
+        .cm-item {
+            padding: 6px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 12px;
+            position: relative;
+            cursor: default;
+        }
+
+        .cm-item * {
+            pointer-events: none;
+        }
+
+        .cm-item.cm-has-submenu {
+            pointer-events: auto;
+            /* Submenu items must trigger hover */
+        }
+
+        .cm-item.cm-has-submenu>* {
+            pointer-events: none;
+        }
+
+        .cm-item:hover {
+            background: #094771;
+            color: #ffffff;
+        }
+
+        .cm-item.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        .cm-divider {
+            height: 1px;
+            background: #454545;
+            margin: 4px 8px;
+        }
+
+        .cm-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cm-shortcut {
+            color: #888;
+            font-size: 11px;
+            margin-left: auto;
+        }
+
+        .cm-arrow {
+            font-size: 8px;
+            margin-left: auto;
+            opacity: 0.6;
+        }
+
+        .cm-submenu {
+            display: none;
+            position: absolute;
+            left: 99%;
+            top: -5px;
+            background: #252526;
+            border: 1px solid #454545;
+            min-width: 200px;
+            padding: 5px 0;
+            border-radius: 6px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+        }
+
+        .cm-item:hover>.cm-submenu {
+            display: block;
+        }
+
+        .cm-header {
+            padding: 4px 12px;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #666;
+            font-weight: bold;
+            display: block;
+        }
+
+        /* Sync with top menu dropdown titles */
+        .menu-dropdown-title {
+            display: block;
+            padding: 6px 12px;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--accent);
+            letter-spacing: 2px;
+            font-weight: 900;
+            opacity: 0.9;
+            text-align: center;
+            background: rgba(0, 255, 170, 0.1);
+            border-bottom: 2px solid var(--accent);
+            margin-bottom: 6px;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .pal-menu-section-label {
+            padding: 6px 12px;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: var(--accent);
+            letter-spacing: 1.5px;
+            font-weight: 800;
+            opacity: 0.8;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.4);
+            border-bottom: 1px solid rgba(0, 255, 170, 0.1);
+            margin-bottom: 2px;
+        }
+
+        .pal-menu-section-label.header-data {
+            color: #6ee7b7;
+            background: rgba(110, 231, 183, 0.1);
+            border-bottom: 1px solid rgba(110, 231, 183, 0.2);
+        }
+
+        .pal-menu-section-label.header-image {
+            color: #60a5fa;
+            background: rgba(96, 165, 250, 0.1);
+            border-bottom: 1px solid rgba(96, 165, 250, 0.2);
+        }
+
+        .pal-menu-section-label.header-zdata {
+            color: #f87171;
+            background: rgba(248, 113, 113, 0.1);
+            border-bottom: 1px solid rgba(248, 113, 113, 0.2);
+        }
+    </style>
+    <script>
+        class MiniZip {
+            constructor() { this.files = []; }
+            add(name, data) { this.files.push({ name, data }); }
+            generate() {
+                let parts = [], centralDir = [], offset = 0;
+                const write2 = (v) => new Uint8Array([v & 0xff, (v >> 8) & 0xff]);
+                const write4 = (v) => new Uint8Array([v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, (v >> 24) & 0xff]);
+                const strToBytes = (str) => new TextEncoder().encode(str);
+                const crcTable = [];
+                for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1)); crcTable[n] = c; }
+                const crc32 = (buf) => { let crc = 0 ^ (-1); for (let i = 0; i < buf.length; i++) crc = (crc >>> 8) ^ crcTable[(crc ^ buf[i]) & 0xFF]; return (crc ^ (-1)) >>> 0; };
+                for (let f of this.files) {
+                    const nameBuf = strToBytes(f.name);
+                    const crc = crc32(f.data);
+                    const size = f.data.length;
+                    const lfh = [write4(0x04034b50), write2(0x000a), write2(0x0000), write2(0x0000), write2(0x0000), write2(0x0000), write4(crc), write4(size), write4(size), write2(nameBuf.length), write2(0)];
+                    const cdh = [write4(0x02014b50), write2(0x0014), write2(0x000a), write2(0x0000), write2(0x0000), write2(0x0000), write2(0x0000), write4(crc), write4(size), write4(size), write2(nameBuf.length), write2(0), write2(0), write2(0), write2(0), write4(0), write4(offset)];
+                    parts.push(...lfh, nameBuf, f.data);
+                    centralDir.push(...cdh, nameBuf);
+                    offset += 30 + nameBuf.length + size;
+                }
+                const centralDirStart = offset;
+                let centralDirSize = 0;
+                for (let part of centralDir) { parts.push(part); centralDirSize += part.length; }
+                const eocd = [write4(0x06054b50), write2(0), write2(0), write2(this.files.length), write2(this.files.length), write4(centralDirSize), write4(centralDirStart), write2(0)];
+                parts.push(...eocd);
+                return new Blob(parts, { type: 'application/zip' });
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <div id="modalOverlay" class="modal-overlay"></div>
+
+    <div id="uiTooltip" class="ui-tooltip"></div>
+    <div id="splashScreen">
+        <!-- ADVANCED SPLASH LOGO (Transparent Variant) -->
+        <div style="margin-bottom: 30px; animation: fadeIn 0.8s ease-out;">
+            <svg width="256" height="256" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Inner Diamond Fill (Dark) -->
+                <path d="M32 30L60 44L32 58L4 44L32 30Z" fill="#0d0e12" />
+
+                <text x="32" y="26" text-anchor="middle" fill="#ffffff" font-family="Verdana, sans-serif"
+                    font-weight="950" font-size="22" letter-spacing="-1">ATE</text>
+
+                <g stroke-linejoin="round">
+                    <!-- Neon Grid -->
+                    <g stroke="#00ff9d" stroke-width="0.8" opacity="0.5">
+                        <path d="M18 37L46 51 M11 40.5L39 54.5 M25 33.5L53 47.5" />
+                        <path d="M46 37L18 51 M53 40.5L25 54.5 M39 33.5L11 47.5" />
+                    </g>
+                    <!-- White Axes -->
+                    <path d="M32 30V58 M4 44H60" stroke="#ffffff" stroke-width="1.2" opacity="0.8" />
+                    <!-- Multi-Selection -->
+                    <g stroke="#ffffff" stroke-width="1.8" fill="#ffffff15">
+                        <path d="M39 33.5L46 37L39 40.5L32 37Z" />
+                        <path d="M46 37L53 40.5L46 44L39 40.5Z" />
+                        <path d="M39 47.5L46 51L39 54.5L32 51Z" />
+                    </g>
+                    <!-- Main Neon Border -->
+                    <path d="M32 30L60 44L32 58L4 44L32 30Z" stroke="#00ff9d" stroke-width="2.5" />
+                </g>
+            </svg>
+        </div>
+        <div class="splash-title" id="splashTitle">
+            <span style="color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.8);">A</span>dvanced
+            <span style="color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.8);">T</span>MP
+            <span style="color: #fff; text-shadow: 0 0 10px rgba(255,255,255,0.8);">E</span>ditor
+        </div>
+        <script>
+            // We set the version/build separately to not overwrite our stylized A T E
+            const titleEl = document.getElementById('splashTitle');
+            const versionSpan = document.createElement('span');
+            versionSpan.style.fontSize = '0.7em';
+            versionSpan.style.opacity = '0.8';
+            versionSpan.style.display = 'block';
+            versionSpan.style.marginTop = '10px';
+            versionSpan.textContent = `${APP_VERSION}`;
+            titleEl.appendChild(versionSpan);
+        </script>
+        <div class="splash-credits"><span data-i18n="lbl_by">By</span> FS-21</div>
+    </div>
+    <div id="app">
+        <!-- TAB BAR (Chrome style) -->
+        <div id="tabBar">
+            <div class="tab-nav-btn" id="btnPrevTab" data-i18n-title="tt_prev_tab">◀</div>
+            <div class="tab-scroll-btn" id="tabScrollLeft">‹</div>
+            <div id="tabsContainer">
+                <!-- Tabs will be rendered here via JS -->
+            </div>
+            <button class="new-tab-btn" id="btnNewTab" data-i18n-title="tt_new_tab">+</button>
+            <div class="tab-scroll-btn" id="tabScrollRight">›</div>
+            <div class="tab-nav-btn" id="btnNextTab" data-i18n-title="tt_next_tab">▶</div>
+
+            <div class="tabs-dropdown-btn" id="tabsDropdownBtn" data-i18n-title="tt_tab_list">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="5" r="2.5" />
+                    <circle cx="12" cy="12" r="2.5" />
+                    <circle cx="12" cy="19" r="2.5" />
+                </svg>
+            </div>
+
+            <!-- Tab List Dropdown -->
+            <div id="tabsDropdown">
+                <div class="tabs-search-container">
+                    <input type="text" id="tabsSearchInput" data-i18n-placeholder="lbl_search_tabs"
+                        placeholder="Search tabs..." autocomplete="off">
+                    <span class="tabs-search-clear" id="tabsSearchClear">&times;</span>
+                </div>
+                <div class="tabs-list-container" id="tabsListContainer">
+                    <!-- Tab list items go here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Context Menu -->
+        <div id="tabContextMenu" class="context-menu">
+            <div class="context-menu-item" id="ctxNewTab" data-i18n="ctx_new_tab">Create New Tab</div>
+            <div class="context-menu-item" id="ctxDuplicateTab" data-i18n="ctx_duplicate_tab">Duplicate Tab</div>
+            <div class="context-menu-item" id="ctxReopenTab" data-i18n="ctx_reopen_tab">Reopen last closed tab</div>
+            <div class="context-menu-divider"></div>
+            <div class="context-menu-item" id="ctxCloseOthers" data-i18n="ctx_close_others">Close other tabs</div>
+            <div class="context-menu-item" id="ctxCloseTab" data-i18n="ctx_close_tab">Close tab</div>
+        </div>
+
+        <!-- TOP TOOLBAR -->
+        <div id="topBar">
+            <div id="mainMenu" class="menu-bar">
+                <div class="menu-item" id="menuItemFile">
+                    <button class="menu-btn" data-i18n="menu_file">File</button>
+                    <div class="menu-dropdown">
+                        <div id="menuNew" class="menu-action" data-i18n-tooltip="tt_menu_new">
+                            <span class="menu-icon icon-new"></span><span data-i18n="menu_new">New TMP</span><span
+                                class="shortcut">Ctrl+N</span>
+                        </div>
+                        <div id="menuOpen" class="menu-action" data-i18n-tooltip="tt_menu_open">
+                            <span class="menu-icon icon-open"></span><span data-i18n="menu_open">Open TMP...</span><span
+                                class="shortcut">Ctrl+O</span>
+                        </div>
+                        <div class="menu-item-submenu" id="menuRecentContainer" style="display:none;">
+                            <div id="triggerRecent" class="menu-action submenu-trigger">
+                                <span class="menu-icon icon-open"></span><span data-i18n="menu_open_recent">Open
+                                    Recent</span><span class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu" id="menuRecentSubmenu">
+                                <div class="pal-menu-section-label" id="menuRecentEmpty"
+                                    data-i18n="lbl_no_recent_files">No recent files</div>
+                            </div>
+                        </div>
+                        <div class="menu-divider"></div>
+                        <div id="menuSave" class="menu-action" data-i18n-tooltip="tt_menu_save">
+                            <span class="menu-icon icon-save"></span><span data-i18n="menu_save">Save TMP</span><span
+                                class="shortcut">Ctrl+S</span>
+                        </div>
+                        <div id="menuSaveAs" class="menu-action" data-i18n-tooltip="tt_menu_save_as">
+                            <span class="menu-icon icon-save"></span><span data-i18n="menu_save_as">Save TMP
+                                as...</span><span class="shortcut">Ctrl+Shift+S</span>
+                        </div>
+
+                        <div class="menu-divider"></div>
+                        <div id="menuCloseTmp" class="menu-action" data-i18n-tooltip="tt_menu_close">
+                            <span class="menu-icon icon-close-tmp"></span><span data-i18n="menu_close">Close TMP</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="menu-item" id="menuItemEdit">
+                    <button class="menu-btn" data-i18n="menu_edit">Edit</button>
+                    <div class="menu-dropdown">
+                        <div id="menuUndo" class="menu-action" data-i18n-tooltip="tt_menu_undo">
+                            <span class="menu-icon icon-undo"></span><span data-i18n="menu_undo">Undo</span><span
+                                class="shortcut">Ctrl+Z</span>
+                        </div>
+                        <div id="menuRedo" class="menu-action" data-i18n-tooltip="tt_menu_redo">
+                            <span class="menu-icon icon-redo"></span><span data-i18n="menu_redo">Redo</span><span
+                                class="shortcut">Ctrl+Y</span>
+                        </div>
+                        <div class="menu-divider"></div>
+                        <div class="menu-divider"></div>
+
+                        <div class="menu-item-submenu">
+                            <div id="menuPredefinedZDataSub" class="menu-action submenu-trigger"
+                                data-i18n-tooltip="tt_predefined_zdata">
+                                <span class="menu-icon icon-zdata"
+                                    style="font-size:11px;font-weight:bold;color:#fff !important;display:inline-flex;align-items:center;justify-content:center;filter:none !important;">Z</span><span
+                                    data-i18n="menu_predefined_zdata">Predefined Z-Data</span><span
+                                    class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu" id="predefinedZDataDropdown"
+                                style="min-width: 260px; max-height: 500px; overflow-y: auto;">
+                                <!-- Dynamically populated -->
+                            </div>
+                        </div>
+
+                        <div class="menu-item-submenu">
+                            <div id="menuGenerateZDataSub" class="menu-action submenu-trigger"
+                                data-i18n-tooltip="tt_generate_zdata">
+                                <span class="menu-icon icon-zdata"
+                                    style="font-size:11px;font-weight:bold;color:#fff !important;display:inline-flex;align-items:center;justify-content:center;filter:none !important;">Z</span><span
+                                    data-i18n="menu_generate_zdata">Generate Z-Data</span><span class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu" style="min-width: 240px;">
+                                <svg width="0" height="0" style="position:absolute;">
+                                    <defs>
+                                        <linearGradient id="gz-vdown" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stop-color="#222" />
+                                            <stop offset="100%" stop-color="#ddd" />
+                                        </linearGradient>
+                                        <linearGradient id="gz-vup" x1="0" y1="1" x2="0" y2="0">
+                                            <stop offset="0%" stop-color="#222" />
+                                            <stop offset="100%" stop-color="#ddd" />
+                                        </linearGradient>
+                                        <linearGradient id="gz-hright" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stop-color="#222" />
+                                            <stop offset="100%" stop-color="#ddd" />
+                                        </linearGradient>
+                                        <linearGradient id="gz-hleft" x1="1" y1="0" x2="0" y2="0">
+                                            <stop offset="0%" stop-color="#222" />
+                                            <stop offset="100%" stop-color="#ddd" />
+                                        </linearGradient>
+                                        <linearGradient id="gz-mirv" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stop-color="#ddd" />
+                                            <stop offset="50%" stop-color="#222" />
+                                            <stop offset="100%" stop-color="#ddd" />
+                                        </linearGradient>
+                                        <linearGradient id="gz-mirvinv" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stop-color="#222" />
+                                            <stop offset="50%" stop-color="#ddd" />
+                                            <stop offset="100%" stop-color="#222" />
+                                        </linearGradient>
+                                        <linearGradient id="gz-mirh" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stop-color="#ddd" />
+                                            <stop offset="50%" stop-color="#222" />
+                                            <stop offset="100%" stop-color="#ddd" />
+                                        </linearGradient>
+                                        <linearGradient id="gz-mirhinv" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stop-color="#222" />
+                                            <stop offset="50%" stop-color="#ddd" />
+                                            <stop offset="100%" stop-color="#222" />
+                                        </linearGradient>
+                                    </defs>
+                                </svg>
+                                <div class="menu-dropdown-title" data-i18n="lbl_generate_zdata_caps">GENERATE Z-DATA
+                                </div>
+                                <div class="pal-menu-section-label header-linear" data-i18n="lbl_linear_gradients">
+                                    LINEAR GRADIENTS</div>
+                                <div id="menuGenZ_VDown" class="menu-action" data-i18n-tooltip="tt_genz_vdown">
+                                    <svg width="14" height="14"
+                                        style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                                        <rect width="14" height="14" fill="url(#gz-vdown)" />
+                                    </svg><span data-i18n="opt_genz_vdown">Top → Bottom (↓)</span>
+                                </div>
+                                <div id="menuGenZ_VUp" class="menu-action" data-i18n-tooltip="tt_genz_vup">
+                                    <svg width="14" height="14"
+                                        style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                                        <rect width="14" height="14" fill="url(#gz-vup)" />
+                                    </svg><span data-i18n="opt_genz_vup">Bottom → Top (↑)</span>
+                                </div>
+                                <div id="menuGenZ_HRight" class="menu-action" data-i18n-tooltip="tt_genz_hright">
+                                    <svg width="14" height="14"
+                                        style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                                        <rect width="14" height="14" fill="url(#gz-hright)" />
+                                    </svg><span data-i18n="opt_genz_hright">Left → Right (→)</span>
+                                </div>
+                                <div id="menuGenZ_HLeft" class="menu-action" data-i18n-tooltip="tt_genz_hleft">
+                                    <svg width="14" height="14"
+                                        style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                                        <rect width="14" height="14" fill="url(#gz-hleft)" />
+                                    </svg><span data-i18n="opt_genz_hleft">Right → Left (←)</span>
+                                </div>
+                                <div class="menu-divider"></div>
+                                <div class="pal-menu-section-label header-mirror" data-i18n="lbl_mirror_gradients">
+                                    MIRROR MODES</div>
+                                <div id="menuGenZ_MirrorV" class="menu-action" data-i18n-tooltip="tt_genz_mirrorv">
+                                    <svg width="14" height="14"
+                                        style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                                        <rect width="14" height="14" fill="url(#gz-mirv)" />
+                                    </svg><span data-i18n="menu_genz_mirrorv">Vertical Mirror (Peak) ↕</span>
+                                </div>
+                                <div id="menuGenZ_MirrorVInv" class="menu-action"
+                                    data-i18n-tooltip="tt_genz_mirrorvinv">
+                                    <svg width="14" height="14"
+                                        style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                                        <rect width="14" height="14" fill="url(#gz-mirvinv)" />
+                                    </svg><span data-i18n="menu_genz_mirrorvinv">Vertical Mirror (Valley) ⇅</span>
+                                </div>
+                                <div id="menuGenZ_MirrorH" class="menu-action" data-i18n-tooltip="tt_genz_mirrorh">
+                                    <svg width="14" height="14"
+                                        style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                                        <rect width="14" height="14" fill="url(#gz-mirh)" />
+                                    </svg><span data-i18n="menu_genz_mirrorh">Horizontal Mirror (Peak) ↔</span>
+                                </div>
+                                <div id="menuGenZ_MirrorHInv" class="menu-action"
+                                    data-i18n-tooltip="tt_genz_mirrorhinv">
+                                    <svg width="14" height="14"
+                                        style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                                        <rect width="14" height="14" fill="url(#gz-mirhinv)" />
+                                    </svg><span data-i18n="menu_genz_mirrorhinv">Horizontal Mirror (Valley) ⇄</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="menu-divider"></div>
+
+                        <div class="menu-item-submenu">
+                            <div id="menuCopySub" class="menu-action submenu-trigger"
+                                data-i18n-tooltip="tt_menu_copy_sub">
+                                <span class="menu-icon icon-copy"></span><span data-i18n="menu_copy">Copy</span><span
+                                    class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu">
+                                <div class="menu-dropdown-title">COPY</div>
+                                <div class="pal-menu-section-label header-data" data-i18n="lbl_section_data">DATA</div>
+                                <div id="menuCopyFull" class="menu-action" data-i18n-tooltip="tt_opt_copy_cell_extra">
+                                    <span data-i18n="opt_copy_cell_extra">Full Cell + Extra Data</span><span
+                                        class="shortcut">Ctrl+C</span>
+                                </div>
+                                <div id="menuCopyOnlyCell" class="menu-action" data-i18n-tooltip="tt_opt_copy_cell">
+                                    <span data-i18n="opt_copy_cell">Only Cell</span><span class="shortcut">Ctrl+1</span>
+                                </div>
+                                <div id="menuCopyOnlyExtra" class="menu-action" data-i18n-tooltip="tt_opt_copy_extra">
+                                    <span data-i18n="opt_copy_extra">Only Extra Data</span><span
+                                        class="shortcut">Ctrl+2</span>
+                                </div>
+                                <div class="menu-divider"></div>
+                                <div class="pal-menu-section-label header-image" data-i18n="lbl_section_image">IMAGE
+                                </div>
+                                <div id="menuCopyImgMerged" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_copy_img_merged">
+                                    <span data-i18n="opt_copy_img_merged">Cell & Extra Data Merged</span><span
+                                        class="shortcut">Shift+3</span>
+                                </div>
+                                <div id="menuCopyImgCell" class="menu-action" data-i18n-tooltip="tt_opt_copy_img_cell">
+                                    <span data-i18n="opt_copy_img_cell">Only Cell</span><span
+                                        class="shortcut">Shift+1</span>
+                                </div>
+                                <div id="menuCopyImgExtra" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_copy_img_extra">
+                                    <span data-i18n="opt_copy_img_extra">Only Extra Data</span><span
+                                        class="shortcut">Shift+2</span>
+                                </div>
+                                <div id="menuCopyImgFullCanvas" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_copy_img_canvas">
+                                    <span data-i18n="menu_copy_full_canvas">Whole Canvas</span><span
+                                        class="shortcut">Shift+4</span>
+                                </div>
+                                <div class="menu-divider"></div>
+                                <div class="pal-menu-section-label header-zdata" data-i18n="lbl_section_zdata">Z-DATA
+                                </div>
+                                <div id="menuCopyZMerged" class="menu-action" data-i18n-tooltip="tt_opt_copy_z_merged">
+                                    <span data-i18n="opt_copy_z_merged">Cell & Extra Data Merged</span><span
+                                        class="shortcut">Shift+7</span>
+                                </div>
+                                <div id="menuCopyZCell" class="menu-action" data-i18n-tooltip="tt_opt_copy_z_cell">
+                                    <span data-i18n="opt_copy_z_cell">Only Cell</span><span
+                                        class="shortcut">Shift+5</span>
+                                </div>
+                                <div id="menuCopyZExtra" class="menu-action" data-i18n-tooltip="tt_opt_copy_z_extra">
+                                    <span data-i18n="menu_only_extra">Only Extra Data</span><span
+                                        class="shortcut">Shift+6</span>
+                                </div>
+                                <div id="menuCopyZFullCanvas" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_copy_z_canvas">
+                                    <span data-i18n="menu_copy_full_canvas">Whole Canvas</span><span
+                                        class="shortcut">Shift+8</span>
+                                </div>
+                                <div class="menu-divider"></div>
+                                <div class="pal-menu-section-label header-placeholder"
+                                    data-i18n="lbl_section_placeholder">DATA PLACEHOLDER</div>
+                                <div id="menuCopyPlaceMerged" class="menu-action" data-i18n-tooltip="tt_copy_place">
+                                    <span data-i18n="opt_copy_place_merged">Cell & Extra Data Merged</span>
+                                </div>
+                                <div id="menuCopyPlaceCell" class="menu-action" data-i18n-tooltip="tt_copy_place">
+                                    <span data-i18n="opt_copy_place_cell">Only Cell</span>
+                                </div>
+                                <div id="menuCopyPlaceExtra" class="menu-action" data-i18n-tooltip="tt_copy_place">
+                                    <span data-i18n="opt_copy_place_extra">Only Extra Data</span>
+                                </div>
+                                <div id="menuCopyPlaceCanvas" class="menu-action" data-i18n-tooltip="tt_copy_place">
+                                    <span data-i18n="opt_copy_place_canvas">Whole Canvas</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="menu-item-submenu">
+                            <div id="menuPasteSub" class="menu-action submenu-trigger"
+                                data-i18n-tooltip="tt_menu_paste_sub">
+                                <span class="menu-icon icon-paste"></span><span data-i18n="menu_paste">Paste</span><span
+                                    class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu">
+                                <div class="menu-dropdown-title">PASTE</div>
+                                <div class="pal-menu-section-label header-data" data-i18n="lbl_section_data">DATA</div>
+                                <div id="menuPasteFull" class="menu-action" data-i18n-tooltip="tt_menu_paste">
+                                    <span data-i18n="opt_paste_full">Full Cell + Extra Data</span><span
+                                        class="shortcut">Ctrl+V</span>
+                                </div>
+                                <div id="menuPasteOnlyCell" class="menu-action" data-i18n-tooltip="tt_opt_paste_cell">
+                                    <span data-i18n="opt_paste_cell">Only Cell</span>
+                                </div>
+                                <div id="menuPasteOnlyExtra" class="menu-action" data-i18n-tooltip="tt_opt_paste_extra">
+                                    <span data-i18n="opt_paste_extra">Extra Data</span>
+                                </div>
+                                <div class="menu-divider"></div>
+                                <div class="pal-menu-section-label header-image" data-i18n="lbl_section_image">IMAGE
+                                </div>
+                                <div id="menuPasteImgMerged" class="menu-action" data-i18n-tooltip="tt_opt_paste_full">
+                                    <span data-i18n="opt_paste_img_merged">Cell & Extra Data Merged</span><span
+                                        class="shortcut">Alt+3</span>
+                                </div>
+                                <div id="menuPasteImgCell" class="menu-action" data-i18n-tooltip="tt_opt_paste_cell">
+                                    <span data-i18n="opt_paste_img_cell">Only Cell</span><span
+                                        class="shortcut">Alt+1</span>
+                                </div>
+                                <div id="menuPasteImgExtra" class="menu-action" data-i18n-tooltip="tt_opt_paste_extra">
+                                    <span data-i18n="opt_paste_img_extra">Only Extra Data</span><span
+                                        class="shortcut">Alt+2</span>
+                                </div>
+                                <div id="menuPasteImgFullCanvas" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_paste_img_canvas">
+                                    <span data-i18n="menu_paste_full_canvas">Whole Canvas</span><span
+                                        class="shortcut">Alt+4</span>
+                                </div>
+                                <div class="menu-divider"></div>
+                                <div class="pal-menu-section-label header-zdata" data-i18n="lbl_section_zdata">Z-DATA
+                                </div>
+                                <div id="menuPasteZMerged" class="menu-action" data-i18n-tooltip="tt_opt_paste_full">
+                                    <span data-i18n="opt_paste_z_merged">Cell & Extra Data Merged</span><span
+                                        class="shortcut">Alt+7</span>
+                                </div>
+                                <div id="menuPasteZCell" class="menu-action" data-i18n-tooltip="tt_opt_paste_cell">
+                                    <span data-i18n="opt_paste_z_cell">Only Cell</span><span
+                                        class="shortcut">Alt+5</span>
+                                </div>
+                                <div id="menuPasteZExtra" class="menu-action" data-i18n-tooltip="tt_opt_paste_extra">
+                                    <span data-i18n="menu_only_extra">Only Extra Data</span><span
+                                        class="shortcut">Alt+6</span>
+                                </div>
+                                <div id="menuPasteZFullCanvas" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_paste_z_canvas">
+                                    <span data-i18n="menu_paste_full_canvas">Whole Canvas</span><span
+                                        class="shortcut">Alt+8</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="menu-divider"></div>
+
+                        <div class="menu-item-submenu">
+                            <div id="menuPasteIntoSub" class="menu-action submenu-trigger"
+                                data-i18n-tooltip="tt_menu_paste_into_sub">
+                                <span class="menu-icon icon-paste"></span><span data-i18n="menu_paste_into_sub">Forced
+                                    Paste</span><span class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu">
+                                <div class="menu-dropdown-title" data-i18n="lbl_forced_paste_caps">FORCED PASTE</div>
+                                <div class="pal-menu-section-label header-data" data-i18n="lbl_section_data">DATA</div>
+                                <div id="menuPasteIntoFull" class="menu-action" data-i18n-tooltip="tt_opt_paste_full">
+                                    <span data-i18n="opt_paste_full">Full Cell + Extra Data</span><span
+                                        class="shortcut">Shift+Ctrl+V</span>
+                                </div>
+                                <div id="menuPasteIntoOnlyCell" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_paste_cell">
+                                    <span data-i18n="opt_paste_cell">Only Cell</span>
+                                </div>
+                                <div id="menuPasteIntoOnlyExtra" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_paste_extra">
+                                    <span data-i18n="opt_paste_extra">Extra Data</span>
+                                </div>
+                                <div class="menu-divider"></div>
+                                <div class="pal-menu-section-label header-cross" data-i18n="lbl_section_cross">
+                                    CROSS-LAYER</div>
+                                <div id="menuPasteImgIntoZ" class="menu-action" data-i18n-tooltip="tt_paste_img_into_z">
+                                    <span data-i18n="opt_paste_img_into_z">Paste Image into Z-Data</span>
+                                </div>
+                                <div id="menuPasteZIntoImg" class="menu-action" data-i18n-tooltip="tt_paste_z_into_img">
+                                    <span data-i18n="opt_paste_z_into_img">Paste Z-Data into Image</span>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <div class="menu-item-submenu">
+                            <div id="menuLoadFromSub" class="menu-action submenu-trigger"
+                                data-i18n-tooltip="tt_menu_load_from">
+                                <span class="menu-icon icon-load-from"></span><span data-i18n="menu_load_from">Load
+                                    from...</span><span class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu">
+                                <div class="menu-dropdown-title" data-i18n="lbl_load_from_caps">LOAD FROM</div>
+                                <div class="pal-menu-section-label header-image" data-i18n="lbl_section_image">IMAGE
+                                </div>
+                                <div id="menuLoadImgMerged" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_load_img_merged">
+                                    <span data-i18n="opt_load_img_merged">Cell & Extra Data Merged</span>
+                                </div>
+                                <div id="menuLoadImgCell" class="menu-action" data-i18n-tooltip="tt_opt_load_img_cell">
+                                    <span data-i18n="opt_load_img_cell">Only Cell</span>
+                                </div>
+                                <div id="menuLoadImgExtra" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_load_img_extra">
+                                    <span data-i18n="menu_only_extra">Only Extra Data</span>
+                                </div>
+                                <div id="menuLoadImgFullCanvas" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_load_img_total">
+                                    <span data-i18n="menu_copy_full_canvas">Whole Canvas</span>
+                                </div>
+                                <div class="menu-divider"></div>
+                                <div class="pal-menu-section-label header-zdata" data-i18n="lbl_section_zdata">Z-DATA
+                                </div>
+                                <div id="menuLoadZMerged" class="menu-action" data-i18n-tooltip="tt_opt_load_z_merged">
+                                    <span data-i18n="opt_load_z_merged">Cell & Extra Data Merged</span>
+                                </div>
+                                <div id="menuLoadZCell" class="menu-action" data-i18n-tooltip="tt_opt_load_z_cell">
+                                    <span data-i18n="opt_load_z_cell">Only Cell</span>
+                                </div>
+                                <div id="menuLoadZExtra" class="menu-action" data-i18n-tooltip="tt_opt_load_z_extra">
+                                    <span data-i18n="menu_only_extra">Only Extra Data</span>
+                                </div>
+                                <div id="menuLoadZFullCanvas" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_load_z_total">
+                                    <span data-i18n="menu_copy_full_canvas">Whole Canvas</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="menu-item-submenu">
+                            <div id="menuSaveToSub" class="menu-action submenu-trigger"
+                                data-i18n-tooltip="tt_menu_save_to">
+                                <span class="menu-icon icon-save-to"></span><span data-i18n="menu_save_to">Save
+                                    to...</span><span class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu">
+                                <div class="menu-dropdown-title" data-i18n="lbl_save_to_caps">SAVE TO</div>
+                                <div class="pal-menu-section-label header-image" data-i18n="lbl_section_image">IMAGE
+                                </div>
+                                <div id="menuSaveImgMerged" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_save_img_merged">
+                                    <span data-i18n="opt_save_img_merged">Cell & Extra Data Merged</span>
+                                </div>
+                                <div id="menuSaveImgCell" class="menu-action" data-i18n-tooltip="tt_opt_save_img_cell">
+                                    <span data-i18n="opt_save_img_cell">Only Cell</span>
+                                </div>
+                                <div id="menuSaveImgExtra" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_save_img_extra">
+                                    <span data-i18n="menu_only_extra">Only Extra Data</span>
+                                </div>
+                                <div id="menuSaveImgFullCanvas" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_save_img_total">
+                                    <span data-i18n="menu_copy_full_canvas">Whole Canvas</span>
+                                </div>
+                                <div class="menu-divider"></div>
+                                <div class="pal-menu-section-label header-zdata" data-i18n="lbl_section_zdata">Z-DATA
+                                </div>
+                                <div id="menuSaveZMerged" class="menu-action" data-i18n-tooltip="tt_opt_save_z_merged">
+                                    <span data-i18n="opt_save_z_merged">Cell & Extra Data Merged</span>
+                                </div>
+                                <div id="menuSaveZCell" class="menu-action" data-i18n-tooltip="tt_opt_save_z_cell">
+                                    <span data-i18n="opt_save_z_cell">Only Cell</span>
+                                </div>
+                                <div id="menuSaveZExtra" class="menu-action" data-i18n-tooltip="tt_opt_save_z_extra">
+                                    <span data-i18n="menu_only_extra">Only Extra Data</span>
+                                </div>
+                                <div id="menuSaveZFullCanvas" class="menu-action"
+                                    data-i18n-tooltip="tt_opt_save_z_total">
+                                    <span data-i18n="menu_copy_full_canvas">Whole Canvas</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="menu-divider"></div>
+                        <div id="menuCut" class="menu-action" data-i18n-tooltip="tt_menu_cut">
+                            <span class="menu-icon icon-cut"></span><span data-i18n="menu_cut">Cut</span><span
+                                class="shortcut">Ctrl+X</span>
+                        </div>
+
+                        <div id="menuDelete" class="menu-action" data-i18n-tooltip="tt_menu_delete">
+                            <span class="menu-icon icon-delete"></span><span data-i18n="menu_delete">Delete
+                                Selection</span><span class="shortcut">Del</span>
+                        </div>
+                        <div id="menuSelectAll" class="menu-action" data-i18n-tooltip="tt_menu_select_all">
+                            <span class="menu-icon icon-select-all"></span><span data-i18n="menu_select_all">Select
+                                All</span><span class="shortcut">Ctrl+A</span>
+                        </div>
+                        <div id="menuDeselect" class="menu-action" data-i18n-tooltip="tt_menu_deselect">
+                            <span class="menu-icon icon-deselect"></span><span
+                                data-i18n="menu_deselect">Deselect</span><span class="shortcut">Ctrl+D</span>
+                        </div>
+                        <div id="menuInvertSelection" class="menu-action" data-i18n-tooltip="tt_menu_invert_sel">
+                            <span class="menu-icon icon-invert"></span><span data-i18n="menu_invert_sel">Invert
+                                Selection</span><span class="shortcut">Ctrl+I</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PALETTES MENU -->
+                <div class="menu-item" id="menuItemPalettes">
+                    <button class="menu-btn" data-i18n="menu_palette">Palette</button>
+                    <div class="menu-dropdown" id="palettesMenuDropdown" style="min-width:320px;">
+                        <!-- Manage Custom button -->
+                        <div id="menuManagePalettes" class="menu-action" data-i18n-tooltip="tt_menu_manage_palettes">
+                            <span class="menu-icon pm-icon-manage"></span><span data-i18n="menu_manage_palettes">Manage
+                                Custom Palettes...</span>
+                        </div>
+                        <div class="menu-divider"></div>
+
+                        <!-- Pinned Favorites (Pinned Section) — populated by JS -->
+                        <div id="palMenuPinnedSection" style="display:none;">
+                            <div class="pal-menu-section-label"><span class="section-icon pm-icon-pin"></span><span
+                                    data-i18n="lbl_pinned_favorites">Pinned Favorites</span></div>
+                            <div id="palMenuPinnedList"></div>
+                            <div class="menu-divider"></div>
+                        </div>
+
+                        <!-- Recently Used (up to 5) — populated by JS -->
+                        <div id="palMenuRecentSection" style="display:none;">
+                            <div class="pal-menu-section-label" data-i18n="lbl_recent_used">Recently Used</div>
+                            <div id="palMenuRecentList"></div>
+                            <div class="menu-divider"></div>
+                        </div>
+
+
+
+                        <!-- Custom submenu -->
+                        <div class="menu-item-submenu">
+                            <div id="triggerPalCustom" class="menu-action submenu-trigger">
+                                <span class="menu-icon icon-open"></span><span data-i18n="lbl_custom">Custom</span><span
+                                    class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu" id="palCustomSubmenu">
+                                <div class="pal-menu-section-label" id="palCustomEmptyMsg"
+                                    data-i18n="msg_no_custom_palettes">No custom palettes
+                                    yet.<br>Use Manage Custom Palettes...</div>
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Tiberian Sun submenu -->
+                        <div class="menu-item-submenu" id="palMenuTsContainer">
+                            <div id="triggerPalTS" class="menu-action submenu-trigger">
+                                <span class="menu-icon pm-icon-ts"></span><span data-i18n="game_ts">Tiberian
+                                    Sun</span><span class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu" id="palTsSubmenu">
+                                <div class="pal-menu-section-label">Loading...</div>
+                            </div>
+                        </div>
+
+                        <!-- Red Alert 2 submenu -->
+                        <div class="menu-item-submenu" id="palMenuRa2Container">
+                            <div id="triggerPalRA2" class="menu-action submenu-trigger">
+                                <span class="menu-icon pm-icon-ra2"></span><span data-i18n="game_ra2">Red Alert
+                                    2</span><span class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu" id="palRa2Submenu">
+                                <div class="pal-menu-section-label">Loading...</div>
+                            </div>
+                        </div>
+
+                        <!-- Yuri's Revenge submenu -->
+                        <div class="menu-item-submenu" id="palMenuYrContainer">
+                            <div id="triggerPalYR" class="menu-action submenu-trigger">
+                                <span class="menu-icon pm-icon-yr"></span><span data-i18n="game_yr">Yuri's
+                                    Revenge</span><span class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu" id="palYrSubmenu">
+                                <div class="pal-menu-section-label">Loading...</div>
+                            </div>
+                        </div>
+
+                        <!-- C&C Reloaded submenu -->
+                        <div class="menu-item-submenu" id="palMenuCnCReloadedContainer">
+                            <div id="triggerPalCnCReloaded" class="menu-action submenu-trigger">
+                                <span class="menu-icon pm-icon-cncreloaded"></span><span
+                                    data-i18n="game_reloaded">C&amp;C
+                                    Reloaded</span><span class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu" id="palCnCReloadedSubmenu">
+                                <div class="pal-menu-section-label">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="menu-item" id="menuItemView">
+                    <button class="menu-btn" data-i18n="menu_view">View</button>
+                    <div class="menu-dropdown">
+                        <div id="menuZoomIn" class="menu-action" data-i18n-tooltip="tt_menu_zoom_in">
+                            <span class="menu-icon icon-zoom-in"></span><span data-i18n="menu_zoom_in">Zoom
+                                In</span><span class="shortcut">Ctrl++</span>
+                        </div>
+                        <div id="menuZoomOut" class="menu-action" data-i18n-tooltip="tt_menu_zoom_out">
+                            <span class="menu-icon icon-zoom-out"></span><span data-i18n="menu_zoom_out">Zoom
+                                Out</span><span class="shortcut">Ctrl+-</span>
+                        </div>
+                        <div id="menuZoom100" class="menu-action" data-i18n-tooltip="tt_menu_zoom_100">
+                            <span class="menu-icon icon-zoom-100"></span><span data-i18n="menu_zoom_100">Restore Zoom
+                                (100%)</span><span class="shortcut">Ctrl+1</span>
+                        </div>
+                        <div class="menu-divider"></div>
+
+                        <div id="menuToggleBackground" class="menu-action" data-i18n-tooltip="tt_toggle_bg">
+                            <span class="menu-icon icon-bg"></span><span data-i18n="menu_toggle_bg">Show
+                                Background</span>
+                        </div>
+                        <div class="menu-divider"></div>
+
+                        <div class="menu-item-submenu">
+                            <div id="triggerGridOptions" class="menu-action submenu-trigger" data-i18n-title="tt_grid">
+                                <span class="menu-icon icon-pixel-grid"></span><span data-i18n="menu_pixel_grid">Pixel
+                                    Grid</span><span class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu">
+                                <div id="menuGridShowNone" class="menu-action" data-i18n-tooltip="tt_menu_grid_none">
+                                    <span data-i18n="menu_grid_none">None</span>
+                                </div>
+                                <div id="menuGridShowLight" class="menu-action" data-i18n-tooltip="tt_menu_grid_light">
+                                    <span data-i18n="menu_grid_light">Light</span><span class="shortcut">Ctrl+L</span>
+                                </div>
+                                <div id="menuGridShowDark" class="menu-action" data-i18n-tooltip="tt_menu_grid_dark">
+                                    <span data-i18n="menu_grid_dark">Dark</span><span class="shortcut">Ctrl+Alt+L</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="menuToggleGameGrid" class="menu-action" data-i18n-tooltip="tt_game_grid">
+                            <span class="menu-icon icon-game-grid"></span>
+                            <span data-i18n="menu_game_grid">Game Grid</span>
+                        </div>
+                        <div id="menuToggleFlatCells" class="menu-action" data-i18n-tooltip="tt_flat_cells">
+                            <span class="menu-icon icon-flat-cells"></span>
+                            <span data-i18n="lbl_flat_cells">Flat cells</span>
+                        </div>
+                        <div id="menuToggleTileTable" class="menu-action" data-i18n-tooltip="tt_tile_table">
+                            <span class="menu-icon icon-tile-table"></span>
+                            <span data-i18n="lbl_tile_table">Cell Data Table</span>
+                        </div>
+                        <div class="menu-separator"></div>
+                        <!-- Visual Mode Submenu Fixed Structure -->
+                        <div class="menu-item-submenu">
+                            <div id="triggerVisualMode" class="menu-action submenu-trigger"
+                                data-i18n-tooltip="tt_visual_mode">
+                                <span class="menu-icon"
+                                    style="font-size:11px;font-weight:bold;color:#fff !important;display:inline-flex;align-items:center;justify-content:center;filter:none !important;">V</span>
+                                <span data-i18n="menu_visual_mode">Visual Mode</span>
+                                <span class="arrow">▶</span>
+                            </div>
+                            <div class="menu-dropdown submenu">
+                                <div id="menuModeNormal" class="menu-action" data-i18n-tooltip="tt_mode_normal">
+                                    <span class="menu-icon icon-normal"
+                                        style="font-size:10px;font-weight:bold;color:#aaa !important;display:inline-flex;align-items:center;justify-content:center;filter:none !important;">IMG</span>
+                                    <span data-i18n="menu_mode_normal">Normal View</span>
+                                    <span id="chkMenuModeNormal" class="menu-checkbox"></span>
+                                </div>
+                                <div id="menuModeZData" class="menu-action" data-i18n-tooltip="tt_mode_zdata">
+                                    <span class="menu-icon icon-z-data"
+                                        style="font-size:11px;font-weight:bold;color:#fff !important;display:inline-flex;align-items:center;justify-content:center;filter:none !important;">Z</span>
+                                    <span data-i18n="menu_mode_zdata">Z-Data View</span>
+                                    <span id="chkMenuModeZData" class="menu-checkbox"></span>
+                                </div>
+                                <div id="menuModePlaceholders" class="menu-action"
+                                    data-i18n-tooltip="tt_mode_placeholders">
+                                    <span class="menu-icon"
+                                        style="display:inline-flex;align-items:center;justify-content:center;filter:none !important;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff"
+                                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="2" y="2" width="12" height="12" rx="1" opacity="0.4"></rect>
+                                            <rect x="6" y="6" width="12" height="12" rx="1" opacity="0.7"></rect>
+                                            <rect x="10" y="10" width="12" height="12" rx="1"></rect>
+                                        </svg>
+                                    </span>
+                                    <span data-i18n="menu_mode_placeholders">Placeholders View</span>
+                                    <span id="chkMenuModePlaceholders" class="menu-checkbox"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+            </div> <!-- End of mainMenu -->
+
+            <div class="toolbar-sep"></div>
+
+            <input type="file" id="fileInTmp" accept=".tem,.sno,.urb,.des,.ubn,.lun" hidden>
+            <input type="file" id="fileInZData" accept="image/*" hidden>
+            <input type="file" id="fileInSurfaceData" accept="image/*" hidden>
+            <input type="file" id="fileInExtraData" accept="image/*" hidden>
+
+            <div id="topBarControls" style="display:flex; align-items:center; gap: 4px;">
+                <!-- Undo/Redo -->
+                <button id="btnUndo" class="btn" data-i18n-tooltip="tt_undo"
+                    style="display:flex; align-items:center; justify-content:center; padding: 4px 8px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z" />
+                    </svg>
+                </button>
+                <button id="btnRedo" class="btn" data-i18n-tooltip="tt_redo"
+                    style="display:flex; align-items:center; justify-content:center; padding: 4px 8px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.06-5.5 7.6-5.5 1.96 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z" />
+                    </svg>
+                </button>
+                <button id="btnMoveMode" class="btn" data-i18n-tooltip="tt_move_mode"
+                    style="display:flex; align-items:center; justify-content:center; padding: 4px 8px;">
+                    <span class="toolbar-icon icon-move" style="width:18px; height:18px; filter:none;"></span>
+                </button>
+
+                <div class="toolbar-sep"></div>
+
+                <button id="btnToggleGrid" class="btn" data-i18n-tooltip="tt_grid"
+                    style="display:flex; align-items:center; justify-content:center; padding: 4px 8px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18" />
+                    </svg>
+                </button>
+
+                <div class="toolbar-sep"></div>
+
+                <button id="btnToggleGameGrid" class="btn" data-i18n-tooltip="tt_game_grid"
+                    style="display:flex; align-items:center; justify-content:center; padding: 4px 8px;">
+                    <span class="toolbar-icon icon-game-grid"></span>
+                </button>
+
+                <button id="btnToggleTileTable" class="btn" data-i18n-tooltip="tt_tile_table"
+                    style="margin-left: 8px; display:flex; align-items:center; justify-content:center; padding: 4px 8px;"
+                    disabled>
+                    <span class="toolbar-icon icon-tile-table"></span>
+                </button>
+            </div> <!-- End of topBarControls -->
+
+            <div style="flex:1"></div>
+            <select id="langSelector" class="input-dark"
+                style="font-size: 13px; padding: 4px 8px; margin-left: 10px; margin-right: 10px;"
+                data-i18n-title="tt_lang">
+                <option value="en">English</option>
+                <option value="es">Español (Spanish)</option>
+                <option value="ru">Русский (Russian)</option>
+                <option value="zh-hant">繁體中文 (Traditional Chinese)</option>
+                <option value="zh-hans">简体中文 (Simplified Chinese)</option>
+                <option value="de">Deutsch (German)</option>
+                <option value="fr">Français (French)</option>
+            </select>
+
+        </div>
+
+        <div id="mainContainer" class="app-container">
+            <div class="panel-left" id="panelLeft"
+                style="display: none; width: 300px; min-width: 300px; max-width: 300px;">
+                <div id="tilesContainer" class="panel-section"
+                    style="height: 100%; flex: 1; display: flex; flex-direction: column;">
+                    <div class="panel-header"
+                        style="display: flex; justify-content: space-between; align-items: center;">
+                        <span data-i18n="sidebar_tiles">TILES</span>
+                    </div>
+                    <div class="toolbar-secondary"
+                        style="display: flex; gap: 4px; padding: 4px; background: #222; border-bottom: 1px solid #444; align-items: center;">
+                        <button id="btnAddTile" class="btn btn-xs btn-square" data-i18n-tooltip="tt_add_tile"></button>
+                        <button id="btnNewExtra" class="btn btn-xs btn-square" data-i18n-tooltip="tt_new_extra"
+                            disabled></button>
+                        <button id="btnDuplicateTile" class="btn btn-xs btn-square"
+                            data-i18n-tooltip="tt_duplicate"></button>
+                        <button id="btnDeleteTile" class="btn btn-xs btn-square" data-i18n-tooltip="tt_delete"></button>
+
+                        <div style="width: 1px; height: 16px; background: #444; margin: 0 4px;"></div>
+
+                        <label class="toolbar-label" data-i18n-tooltip="tt_bond_selection"
+                            style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #ffffff; font-size: 11px; font-weight: 700; text-transform: uppercase;">
+                            <input type="checkbox" id="chkBondSelection" checked style="margin: 0; scale: 0.8;">
+                            <span data-i18n="lbl_bond">Bond</span>
+                        </label>
+
+                        <div style="flex: 1;"></div>
+                        <button id="btnMoveTilesUp" class="btn btn-xs btn-square"
+                            data-i18n-tooltip="tt_move_up"></button>
+                        <button id="btnMoveTilesDown" class="btn btn-xs btn-square"
+                            data-i18n-tooltip="tt_move_down"></button>
+                    </div>
+                    <div id="tilesList" class="layers-list"
+                        style="flex: 1; overflow-y: auto; overflow-x: hidden; background: #111; padding: 4px;">
+                        <!-- Tiles (Frames) items will be injected here -->
+                    </div>
+                    <div class="layers-footer"
+                        style="padding: 2px; border-top: 1px solid #444; height: 10px; background: #222;">
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- CENTER PANEL: Canvas -->
+            <div id="canvasArea" class="panel-center">
+
+                <div class="canvas-main-segment" style="display:flex; flex:1; flex-direction:row; overflow:hidden;">
+
+
+                    <div class="canvas-viewport"
+                        style="display:flex; flex-direction:column; padding:0; position: relative;">
+                        <!-- Limit Warning Bar -->
+                        <div id="limitNotification" class="notification-bar">
+                            <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path
+                                        d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+                                    </path>
+                                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                </svg>
+                                <span id="limitNotificationMsg" style="font-weight: bold;">[WARNING] Grid size limit
+                                    reached.</span>
+                            </div>
+                            <button class="close-btn"
+                                style="background:transparent; border:none; color:inherit; font-size:24px; cursor:pointer;"
+                                onclick="this.parentElement.classList.remove('active')">&times;</button>
+                        </div>
+
+                        <!-- Paste Error Notification Bar -->
+                        <div id="pasteNotification" class="notification-bar">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                    <line x1="12" y1="16" x2="12" y2="16"></line>
+                                </svg>
+                                <span id="pasteNotificationMsg" data-i18n="msg_err_paste_op">Error during paste
+                                    operation.</span>
+                            </div>
+                            <button class="close-btn"
+                                onclick="this.parentElement.classList.remove('active')">&times;</button>
+                        </div>
+
+                        <!-- Mismatch Warning Bar -->
+                        <div id="mismatchNotification" class="notification-bar error"
+                            style="background: linear-gradient(to right, #4a0505, #8a0000); border-bottom-color: #ff0000;">
+                            <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path
+                                        d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+                                    </path>
+                                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                </svg>
+                                <span id="mismatchNotificationMsg" style="font-weight: bold;"
+                                    data-i18n="msg_mismatch_alert">[ALERT] Size mismatch in Extra Data detected.</span>
+                            </div>
+                            <button class="close-btn"
+                                style="background:transparent; border:none; color:inherit; font-size:24px; cursor:pointer;"
+                                onclick="this.parentElement.classList.remove('active')">&times;</button>
+                        </div>
+
+                        <div id="canvasScrollArea"
+                            style="flex:1; overflow:auto; position:relative; padding:20px; display:flex;">
+                            <div id="canvasWrapper" class="canvas-wrapper" style="margin: auto; position: relative;">
+                                <div id="pixelGridOverlay" class="pixel-grid-overlay"></div>
+                                <canvas id="mainCanvas"></canvas>
+                                <canvas id="overlayCanvas"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- TILE DATA TABLE (Collapsible & Resizable) -->
+                        <div id="tileDataTablePanel"
+                            style="display: none; height: 230px; min-height: 80px; max-height: 800px; border-top: 1px solid #111; overflow: hidden; flex-direction: column; background: #1a1b21; flex-shrink: 0; position: relative;">
+                            <!-- Resizer Handle -->
+                            <div id="tileDataTableResizer"
+                                style="position: absolute; top: 0; left: 0; right: 0; height: 3px; cursor: ns-resize; background: #333; z-index: 10; transition: background 0.2s;">
+                            </div>
+
+                            <div class="panel-header"
+                                style="height: 24px; padding: 0 10px; font-size: 11px; background: #2d3748; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; border-top: 1px solid #4a5568;">
+                                <span data-i18n="lbl_tile_table"
+                                    style="font-weight: bold; color: #cbd5e0; text-transform: uppercase; letter-spacing: 0.5px;">Cell
+                                    Data Table</span>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <label
+                                        style="display: flex; align-items: center; gap: 4px; cursor: pointer; color: #a0aec0; font-size: 10px; padding: 2px 6px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                                        <input type="checkbox" id="chkShowOnlySelectedCells"
+                                            style="margin: 0; scale: 0.8;">
+                                        <span data-i18n="lbl_only_selected">Only Selected</span>
+                                    </label>
+                                    <span id="tileDataTableCount"
+                                        style="color: var(--accent); font-family: monospace; font-weight: bold;">0
+                                        Total</span>
+                                </div>
+                            </div>
+                            <div style="flex: 1; overflow: auto; padding: 0;">
+                                <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #fff;">
+                                    <thead style="background: #111; position: sticky; top: 0; z-index: 5;">
+                                        <tr>
+                                            <th style="width: 50px; text-align: left; padding: 4px 8px; border-bottom: 2px solid #333; color: #a0aec0; text-transform: uppercase; font-weight: 700;"
+                                                data-i18n="lbl_index">INDEX</th>
+                                            <th style="width: 40px; text-align: left; padding: 4px 8px; border-bottom: 2px solid #333; color: #a0aec0; text-transform: uppercase; font-weight: 700;"
+                                                data-i18n="lbl_tbl_x">X</th>
+                                            <th style="width: 40px; text-align: left; padding: 4px 8px; border-bottom: 2px solid #333; color: #a0aec0; text-transform: uppercase; font-weight: 700;"
+                                                data-i18n="lbl_tbl_y">Y</th>
+                                            <th style="width: 50px; text-align: left; padding: 4px 8px; border-bottom: 2px solid #333; color: #a0aec0; text-transform: uppercase; font-weight: 700;"
+                                                data-i18n="lbl_tbl_height">HEIGHT</th>
+                                            <th style="width: 55px; text-align: left; padding: 4px 8px; border-bottom: 2px solid #333; color: #a0aec0; text-transform: uppercase; font-weight: 700;"
+                                                data-i18n="lbl_extra_x">EXTRA X</th>
+                                            <th style="width: 55px; text-align: left; padding: 4px 8px; border-bottom: 2px solid #333; color: #a0aec0; text-transform: uppercase; font-weight: 700;"
+                                                data-i18n="lbl_extra_y">EXTRA Y</th>
+                                            <th style="text-align: left; padding: 4px 8px; border-bottom: 2px solid #333; color: #a0aec0; text-transform: uppercase; font-weight: 700;"
+                                                data-i18n="lbl_tbl_land_type">LAND TYPE</th>
+                                            <th style="text-align: left; padding: 4px 8px; border-bottom: 2px solid #333; color: #a0aec0; text-transform: uppercase; font-weight: 700;"
+                                                data-i18n="lbl_tbl_ramp_type">RAMP TYPE</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tileDataTableBody">
+                                        <!-- Rows injected dynamically based on selection -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- STATUS BAR -->
+                        <div id="statusBar" class="status-bar">
+                            <div class="status-bar-left">
+                                <div class="status-item" id="statusSelectionInfo" title="Bounding rectangle"
+                                    data-i18n-title="tooltip_rect" style="display: none;">
+                                    <svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-dasharray="2 2">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    </svg>
+                                    <span class="status-info"><span data-i18n="lbl_bounding_rect">Bounding
+                                            rectangle</span>: <span id="selectionDisplay">0 ×
+                                            0</span></span>
+                                </div>
+                            </div>
+                            <div class="status-bar-right">
+                                <div class="status-item" title="Mouse Coordinates" data-i18n-title="tooltip_coords">
+                                    <svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <line x1="22" y1="12" x2="18" y2="12"></line>
+                                        <line x1="6" y1="12" x2="2" y2="12"></line>
+                                        <line x1="12" y1="6" x2="12" y2="2"></line>
+                                        <line x1="12" y1="22" x2="12" y2="18"></line>
+                                    </svg>
+                                    <div id="coordsDisplay" class="status-info">0, 0</div>
+                                </div>
+                                <div class="unified-stepper unified-stepper-small">
+                                    <button id="btnZoomReset" class="status-zoom-btn" title="Restore Zoom (100%)"
+                                        data-i18n-title="tooltip_zoom_reset"
+                                        style="border-right: 1px solid #4a5568 !important; display: flex; align-items: center; justify-content: center;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                                            stroke-linejoin="round">
+                                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                                            <path d="M3 3v5h5"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    </button>
+                                    <button id="btnZoomMinus" class="status-zoom-btn status-zoom-btn-minus"
+                                        title="Zoom Out (Ctrl+Click for -5%)"
+                                        data-i18n-title="tooltip_zoom_minus">−</button>
+                                    <div class="status-zoom-slider-container">
+                                        <div id="zoomSizeBar" class="status-zoom-bar"></div>
+                                        <input type="range" id="inpZoom" min="50" max="5000" step="50" value="100"
+                                            class="status-zoom-slider">
+                                        <span id="zoomVal" class="status-zoom-val">100%</span>
+                                    </div>
+                                    <button id="btnZoomPlus" class="status-zoom-btn status-zoom-btn-plus"
+                                        title="Zoom In (Ctrl+Click for +5%)"
+                                        data-i18n-title="tooltip_zoom_plus">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div> <!-- End of canvas-viewport -->
+                </div> <!-- End of canvas-main-segment -->
+            </div> <!-- End of canvasArea -->
+
+            <!-- RIGHT PANEL: Properties (Formerly Left Panel) -->
+            <div class="panel-right" id="panelRight"
+                style="display: none; width: 280px; min-width: 280px; max-width: 280px;">
+                <div class="panel-header" data-i18n="sidebar_properties">PROPERTIES</div>
+
+                <div id="tileProperties" style="margin-top: 2px; flex: 1; overflow-y: auto;">
+                    <!-- Tile properties will be added here -->
+                    <div style="font-size: 11px; color: #666; font-style: italic; text-align: center; padding: 20px;"
+                        data-i18n="msg_select_tile_props">
+                        Select a tile to view properties.
+                    </div>
+                </div>
+            </div>
+        </div> <!-- mainContainer -->
+    </div> <!-- app -->
+
+    <!-- DIALOGS -->
+    <dialog id="dialogMultiFrame" class="dialog-modal">
+        <h3 data-i18n="dlg_mf_title">Multi-Frame Layer Ops</h3>
+        <div style="display:grid; grid-template-columns: 100px 1fr; gap:10px; align-items:center;">
+            <label data-i18n="lbl_action">Action:</label>
+            <select id="mfAction" class="input-dark">
+                <option value="copy" data-i18n="opt_copy">Copy</option>
+                <option value="move" data-i18n="opt_move">Move</option>
+            </select>
+
+            <label data-i18n="lbl_start_frame">Start Frame:</label>
+            <input type="number" id="mfStart" class="input-dark" min="0">
+
+            <label data-i18n="lbl_end_frame">End Frame:</label>
+            <input type="number" id="mfEnd" class="input-dark" min="0">
+        </div>
+        <p class="hint" data-i18n="lbl_indices_hint">Indices are 0-based. (0 to N-1)</p>
+        <div class="dialog-footer">
+            <button id="btnMfCancel" class="btn" data-i18n="btn_cancel">Cancel</button>
+            <button id="btnMfProcess" class="btn btn-primary" data-i18n="btn_process">Process</button>
+        </div>
+    </dialog>
+    <!-- Old resizeDialog removed: replaced by unifiedResizeDialog -->
+    <dialog id="exportTmpDialog" class="dialog-modal">
+        <h3 data-i18n="dlg_export_tmp_title">EXPORT TMP</h3>
+        <div style="margin-bottom: 20px;">
+            <label data-i18n="lbl_filename">Filename:</label>
+            <input type="text" id="txtExpTmpName" class="input-dark" style="width: 100%;" value="output.tmp">
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label data-i18n="lbl_compression">Compression:</label>
+            <select id="selExpTmpType" class="input-dark">
+                <option value="3" data-i18n="opt_format80_c">Format 80 (Type 3 - Compressed)</option>
+                <option value="1" data-i18n="opt_format80_u">Format 80 (Type 1 - Uncompressed)</option>
+            </select>
+        </div>
+
+        <div class="dialog-footer">
+            <button id="btnCancelExpTmp" class="btn-cancel" data-i18n="btn_cancel">CANCEL</button>
+            <button id="btnConfirmExpTmp" class="btn-download" data-i18n="btn_export_caps">EXPORT</button>
+        </div>
+    </dialog>
+
+    <dialog id="newTmpDialog" class="dialog-modal" style="width: 800px; max-width: 95vw; background: #0f111a;">
+        <h3 style="color: var(--accent); letter-spacing: 1px;" data-i18n="menu_new">CREATE NEW TMP</h3>
+
+        <div style="display: flex; gap: 15px; height: 450px;">
+            <!-- Left Column: Palette (Fixed 240px width to match Open TMP) -->
+            <div style="width: 240px; display:flex; flex-direction:column; flex-shrink:0;">
+                <div class="analysis-header" data-i18n="dlg_new_shp_step1">1. Load Palette</div>
+                <!-- Palette Menu Dropdown (Shared logic) -->
+                <div class="menu-item palette-selector-menu height-auto" id="menuItemNewPalettes"
+                    style="margin-bottom: 5px;">
+                    <button class="menu-btn"
+                        style="width:100%; text-align:left; display:flex; justify-content:space-between; padding: 8px 12px; border: 1px solid var(--border); background: var(--bg-input); border-radius: 4px; color: var(--accent); font-weight: bold;">
+                        <span data-i18n="btn_select_palette">🎨 SELECT PALETTE</span>
+                        <span class="arrow" style="opacity: 0.5;">▼</span>
+                    </button>
+                    <div class="menu-dropdown" id="newPalettesMenuDropdown"
+                        style="width: 240px; min-width: 240px; margin-top: 2px;">
+                        <!-- Content populated by JS -->
+                    </div>
+                </div>
+                <!-- Box matches Open TMP directly with palette-grid-wrapper -->
+                <div id="newTmpPalPreview" class="palette-grid-wrapper"
+                    style="flex:1; border: 1px solid var(--border); background:#000;">
+                    <!-- Palette Preview Grid -->
+                </div>
+                <div id="newTmpPalInfo" style="font-size: 11px; color: #888; margin-top: 5px; text-align:center;"
+                    data-i18n="msg_default_pal_loaded">
+                    Default Palette loaded.
+                </div>
+                <input type="file" id="fileNewTmpPal" accept=".pal" style="display:none">
+            </div>
+
+            <!-- Right Column: Config -->
+            <div style="flex: 1; display:flex; flex-direction:column;">
+                <div class="analysis-header" data-i18n="dlg_new_config">2. Configuration</div>
+
+                <div
+                    style="background: rgba(45, 55, 72, 0.3); padding: 15px; border-radius: 4px; border: 1px solid var(--border); overflow-y:auto;">
+                    <div style="margin-bottom: 12px;">
+                        <label
+                            style="display:block; margin-bottom:4px; color: var(--accent); font-size:11px; text-transform:uppercase;"
+                            data-i18n="lbl_map_width">Map Width (blocks)</label>
+                        <div class="input-stepper">
+                            <button type="button" class="step-btn">-</button>
+                            <input type="number" id="newTmpBlocksX" class="input-dark input-step" value="1" min="1"
+                                max="4096">
+                            <button type="button" class="step-btn">+</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <label
+                            style="display:block; margin-bottom:4px; color: var(--accent); font-size:11px; text-transform:uppercase;"
+                            data-i18n="lbl_map_height">Map Height (blocks)</label>
+                        <div class="input-stepper">
+                            <button type="button" class="step-btn">-</button>
+                            <input type="number" id="newTmpBlocksY" class="input-dark input-step" value="1" min="1"
+                                max="4096">
+                            <button type="button" class="step-btn">+</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <label
+                            style="display:block; margin-bottom:4px; color: var(--accent); font-size:11px; text-transform:uppercase;"
+                            data-i18n="lbl_tile_profile">Tile Profile</label>
+                        <div
+                            style="display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 4px;">
+                            <label
+                                style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 11px;">
+                                <input type="radio" name="newTmpProfile" value="ra2" checked>
+                                <span data-i18n="prof_ra2">Red Alert 2 (60 x 30)</span>
+                            </label>
+                            <label
+                                style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 11px;">
+                                <input type="radio" name="newTmpProfile" value="ts">
+                                <span data-i18n="prof_ts">Tiberian Sun (48 x 24)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div
+                        style="background: rgba(0, 255, 170, 0.05); padding: 10px; border-radius: 4px; border: 1px dashed rgba(0, 255, 170, 0.2); margin-top: 10px;">
+                        <p style="color: #a0aec0; font-size: 10px; margin: 0; line-height: 1.4;"
+                            data-i18n="msg_new_tmp_hint">
+                            New files start with an empty tile index table. You can save immediately and fill content
+                            later.
+                        </p>
+                    </div>
+                </div>
+
+                <div style="flex:1;"></div>
+
+                <div
+                    style="background: rgba(255, 204, 0, 0.05); padding: 10px; border-radius: 4px; font-size: 11px; color: #ccaa00; border: 1px solid rgba(255, 204, 0, 0.2);">
+                    ⚠ <span data-i18n="msg_new_shp_warning2">Current unsaved work will be lost.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="dialog-footer" style="margin-top: 20px;">
+            <button id="btnCancelNewTmp" class="btn-cancel" data-i18n="btn_cancel">CANCEL</button>
+            <button id="btnCreateNewTmp" class="btn btn-primary" data-i18n="btn_create_tmp">CREATE TMP</button>
+        </div>
+    </dialog>
+
+
+
+
+    <dialog id="importTmpDialog" class="dialog-modal" style="width: 800px; max-width: 95vw; background: #0f111a;">
+        <h3 style="color: var(--accent); letter-spacing: 1px;"><span data-i18n="dlg_open_shp_title">OPEN TMP</span>
+            <small style="font-size: 0.8em; font-style: italic; opacity: 0.7; font-weight: normal; margin-left: 10px;"
+                data-i18n="lbl_shp_format_hint">(TS
+                & RA2, FORMAT 80)</small>
+        </h3>
+        <p data-i18n="msg_open_shp_warning" id="openTmpWarningMsg"
+            style="color:#ffcc00; font-size:11px; margin-bottom:15px; background: rgba(255, 204, 0, 0.05); padding: 8px; border: 1px solid rgba(255, 204, 0, 0.2);">
+            ⚠ Opening a TMP file will overwrite the current project. Save your work first if needed.
+        </p>
+
+        <div style="display:flex; gap:15px; height:450px;">
+            <!-- Left: Palette Selection -->
+            <div style="flex: 1; display:flex; flex-direction:column;">
+                <div class="analysis-header" data-i18n="dlg_shp_step1">1. Load Reference Palette</div>
+                <div class="menu-item palette-selector-menu height-auto" id="menuItemImpPalettes"
+                    style="margin-bottom: 5px;">
+                    <button class="menu-btn"
+                        style="width:100%; text-align:left; display:flex; justify-content:space-between; padding: 8px 12px; border: 1px solid var(--border); background: var(--bg-input); border-radius: 4px; color: var(--accent); font-weight: bold;">
+                        <span data-i18n="btn_select_palette">🎨 SELECT PALETTE</span>
+                        <span class="arrow" style="opacity: 0.5;">▼</span>
+                    </button>
+                    <div class="menu-dropdown" id="impPalettesMenuDropdown"
+                        style="width: 240px; min-width: 240px; margin-top: 2px;">
+                        <!-- Content populated by JS -->
+                    </div>
+                </div>
+                <div id="impTmpPalGrid" class="palette-grid-wrapper"></div>
+            </div>
+
+            <!-- Right: TMP Preview -->
+            <div style="flex:2; display:flex; flex-direction:column;">
+                <div class="analysis-header" data-i18n="dlg_shp_step2">2. Load TMP File</div>
+                <button id="btnImpTmpLoadFile" class="btn"
+                    style="width:100%; margin-bottom: 5px; background: #2d3748; color: #fff;"
+                    data-i18n="btn_load_shp">LOAD TMP</button>
+
+                <div style="font-size:12px; color: var(--text-muted); margin-bottom: 5px; font-family: monospace;">
+                    <span data-i18n="lbl_filename">Filename:</span> <span id="impTmpInfo">-</span>
+                </div>
+
+                <div id="impTmpPreviewContainer" class="checkerboard-bg"
+                    style="flex:1; position:relative; display:flex; align-items:center; justify-content:center; border:1px solid var(--border); overflow:hidden; min-height: 250px;">
+                    <canvas id="impTmpCanvas"
+                        style="max-width:100%; max-height:100%; image-rendering:pixelated;"></canvas>
+                </div>
+
+                <!-- Tile Data Table (XCC Style) -->
+                <div id="impTmpTileDataLog"
+                    style="height: 120px; overflow-y: scroll; background: #050505; border: 1px solid #333; margin-top: 5px; font-family: 'Courier New', Courier, monospace; font-size: 11px; color: #00ff00;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead style="background: #1a202c; position: sticky; top: 0; color: var(--accent);">
+                            <tr>
+                                <th style="padding: 2px 4px; border: 1px solid #222; width: 40px;"
+                                    data-i18n="lbl_tbl_slot">Slot</th>
+                                <th style="padding: 2px 4px; border: 1px solid #222;" data-i18n="lbl_tbl_x">X</th>
+                                <th style="padding: 2px 4px; border: 1px solid #222;" data-i18n="lbl_tbl_y">Y</th>
+                                <th style="padding: 2px 4px; border: 1px solid #222;" data-i18n="lbl_tbl_height">Height
+                                </th>
+                                <th style="padding: 2px 4px; border: 1px solid #222;" data-i18n="lbl_tbl_extra_data">
+                                    Extra Data</th>
+                                <th style="padding: 2px 4px; border: 1px solid #222;" data-i18n="lbl_tbl_land_type">Land
+                                    Type</th>
+                                <th style="padding: 2px 4px; border: 1px solid #222;" data-i18n="lbl_tbl_ramp_type">Ramp
+                                    Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="impTmpTileTableBody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 10px; color: #666;"
+                                    data-i18n="msg_no_data_loaded">No data loaded
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Preview info -->
+            </div>
+        </div>
+
+        <div class="dialog-footer" style="padding-top: 20px;">
+            <button id="btnCancelImpTmp" class="btn-cancel" style="border: 1px solid #4a5568;"
+                data-i18n="btn_cancel">CANCEL</button>
+            <button id="btnConfirmImpTmp" class="btn-download" disabled data-i18n="btn_open">OPEN</button>
+        </div>
+
+        <!-- Hidden inputs -->
+        <input type="file" id="inpImpTmpPal" accept=".pal" hidden>
+        <input type="file" id="inpImpTmpFile" accept=".tem,.sno,.urb,.des,.ubn,.lun" hidden>
+    </dialog>
+
+
+
+
+
+    <!-- Generic Confirmation Dialog -->
+    <dialog id="confirmDialog" class="dialog-modal"
+        style="width: fit-content; min-width: 400px; max-width: 90vw; padding: 20px; text-align: center; background: #1a202c; border: 1px solid var(--accent); box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        <h3 id="confirmTitle"
+            style="color: var(--accent); margin-bottom: 10px; font-size: 14px; letter-spacing: 1px; font-family: monospace;"
+            data-i18n="dlg_confirm_title">
+            CONFIRM ACTION</h3>
+        <p id="confirmMessage"
+            style="font-size: 13px; color: #fff; margin-bottom: 25px; line-height: 1.4; font-family: monospace;">
+        </p>
+        <div class="dialog-footer" style="justify-content: center; gap: 15px; margin-top: 0;">
+            <button id="btnConfirmNo" class="btn-cancel" style="padding: 8px 25px; min-width: 80px;"
+                data-i18n="btn_no">NO</button>
+            <button id="btnConfirmYes" class="btn-download" style="padding: 8px 25px; min-width: 80px;"
+                data-i18n="btn_yes">YES</button>
+        </div>
+    </dialog>
+
+    <dialog id="alertDialog" class="dialog-modal"
+        style="width: fit-content; min-width: 400px; max-width: 90vw; padding: 20px; text-align: center; background: #1a202c; border: 1px solid var(--accent); box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        <h3 id="alertTitle"
+            style="color: var(--accent); margin-bottom: 10px; font-size: 14px; letter-spacing: 1px; font-family: monospace;"
+            data-i18n="dlg_alert_title">
+            ALERT</h3>
+        <p id="alertMessage"
+            style="font-size: 13px; color: #fff; margin-bottom: 25px; line-height: 1.4; font-family: monospace;">
+        </p>
+        <div class="dialog-footer" style="justify-content: center; margin-top: 0;">
+            <button id="btnAlertOk" class="btn-download" style="padding: 8px 25px; min-width: 80px;"
+                data-i18n="btn_ok">OK</button>
+        </div>
+    </dialog>
+
+
+
+    <dialog id="choiceDialog" class="dialog-modal"
+        style="width: fit-content; min-width: 450px; max-width: 95vw; padding: 20px; text-align: center; background: #1a202c; border: 1px solid var(--accent); box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        <h3 id="choiceTitle"
+            style="color: var(--accent); margin-bottom: 10px; font-size: 14px; letter-spacing: 1px; font-family: monospace;"
+            data-i18n="dlg_choose_option">
+            CHOOSE OPTION</h3>
+        <p id="choiceMessage"
+            style="font-size: 13px; color: #fff; margin-bottom: 25px; line-height: 1.4; font-family: monospace;">
+        </p>
+        <div class="dialog-footer" style="justify-content: center; gap: 15px; margin-top: 0;">
+            <button id="btnChoice1" class="btn" style="padding: 8px 15px; flex: 1;" data-i18n="btn_option1">OPTION
+                1</button>
+            <button id="btnChoice2" class="btn btn-primary" style="padding: 8px 15px; flex: 1;"
+                data-i18n="btn_option2">OPTION
+                2</button>
+            <button id="btnChoiceCancel" class="btn-cancel" style="padding: 8px 15px; flex: 1;"
+                data-i18n="btn_cancel">CANCEL</button>
+        </div>
+    </dialog>
+    <dialog id="deleteConfirmDialog" class="dialog-modal"
+        style="width: 800px; max-width: 95vw; padding: 20px; background: #1a202c; border: 1px solid var(--accent); box-shadow: 0 10px 25px rgba(0,0,0,0.6);">
+        <h3 id="deleteConfirmTitle"
+            style="color: var(--accent); margin-top: 0; margin-bottom: 12px; font-size: 16px; letter-spacing: 1.5px; font-family: monospace; text-transform: uppercase;"
+            data-i18n="dlg_confirm_deletion">
+            CONFIRM DELETION</h3>
+        <p id="deleteConfirmMessage" style="font-size: 13px; color: #e2e8f0; margin-bottom: 15px; line-height: 1.4;"
+            data-i18n="msg_confirm_deletion_multi">
+            Are you sure you want to delete the following items?
+        </p>
+        <div id="deleteConfirmList"
+            style="max-height: 240px; overflow-y: auto; background: rgba(0,0,0,0.4); border: 1px solid #333; border-radius: 4px; padding: 8px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 6px;">
+            <!-- Content injected via JS -->
+        </div>
+        <div class="dialog-footer" style="justify-content: flex-end; gap: 12px; margin-top: 0;">
+            <button id="btnDeleteConfirmCancel" class="btn"
+                style="padding: 8px 20px; background: #4a5568 !important; color: #fff !important; width: 100px;"
+                data-i18n="btn_cancel">CANCEL</button>
+            <button id="btnDeleteConfirmExecute" class="btn btn-danger"
+                style="padding: 8px 20px; background: #c53030 !important; color: #fff !important; font-weight: bold; width: 100px;"
+                data-i18n="btn_delete">DELETE</button>
+        </div>
+    </dialog>
+
+
+
+    <!-- CONTEXT MENU -->
+    <div id="tileContextMenu" class="context-menu" style="display: none;">
+        <div id="cmUndo" class="cm-item" data-i18n-tooltip="tt_menu_undo">
+            <span class="cm-label"><span class="menu-icon icon-undo"></span><span
+                    data-i18n="menu_undo">Undo</span></span>
+            <span class="cm-shortcut">Ctrl+Z</span>
+        </div>
+        <div id="cmRedo" class="cm-item" data-i18n-tooltip="tt_menu_redo">
+            <span class="cm-label"><span class="menu-icon icon-redo"></span><span
+                    data-i18n="menu_redo">Redo</span></span>
+            <span class="cm-shortcut">Ctrl+Y</span>
+        </div>
+        <div class="cm-divider"></div>
+        <div class="cm-item cm-has-submenu" id="cmItemPredefinedZ" data-i18n-tooltip="tt_predefined_zdata">
+            <span class="cm-label"><span class="menu-icon icon-zdata"
+                    style="font-size:11px;font-weight:bold;color:#fff !important;display:inline-flex;align-items:center;justify-content:center;filter:none !important;">Z</span><span
+                    data-i18n="menu_predefined_zdata">Predefined Z-Data</span></span>
+            <span class="cm-arrow">▶</span>
+            <div class="cm-submenu" id="ctxPredefinedZDataDropdown"
+                style="min-width: 260px; max-height: 500px; overflow-y: auto;">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+
+        <div class="cm-item cm-has-submenu" id="cmItemGenZ" data-i18n-tooltip="tt_generate_zdata">
+            <span class="cm-label"><span class="menu-icon icon-zdata"
+                    style="font-size:11px;font-weight:bold;color:#fff !important;display:inline-flex;align-items:center;justify-content:center;filter:none !important;">Z</span><span
+                    data-i18n="menu_generate_zdata">Generate Z-Data</span></span>
+            <span class="cm-arrow">▶</span>
+            <div class="cm-submenu" style="min-width: 250px;">
+                <svg width="0" height="0" style="position:absolute;">
+                    <defs>
+                        <linearGradient id="gzc-vdown" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#222" />
+                            <stop offset="100%" stop-color="#ddd" />
+                        </linearGradient>
+                        <linearGradient id="gzc-vup" x1="0" y1="1" x2="0" y2="0">
+                            <stop offset="0%" stop-color="#222" />
+                            <stop offset="100%" stop-color="#ddd" />
+                        </linearGradient>
+                        <linearGradient id="gzc-hright" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0%" stop-color="#222" />
+                            <stop offset="100%" stop-color="#ddd" />
+                        </linearGradient>
+                        <linearGradient id="gzc-hleft" x1="1" y1="0" x2="0" y2="0">
+                            <stop offset="0%" stop-color="#222" />
+                            <stop offset="100%" stop-color="#ddd" />
+                        </linearGradient>
+                        <linearGradient id="gzc-mirv" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#ddd" />
+                            <stop offset="50%" stop-color="#222" />
+                            <stop offset="100%" stop-color="#ddd" />
+                        </linearGradient>
+                        <linearGradient id="gzc-mirvinv" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#222" />
+                            <stop offset="50%" stop-color="#ddd" />
+                            <stop offset="100%" stop-color="#222" />
+                        </linearGradient>
+                        <linearGradient id="gzc-mirh" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0%" stop-color="#ddd" />
+                            <stop offset="50%" stop-color="#222" />
+                            <stop offset="100%" stop-color="#ddd" />
+                        </linearGradient>
+                        <linearGradient id="gzc-mirhinv" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0%" stop-color="#222" />
+                            <stop offset="50%" stop-color="#ddd" />
+                            <stop offset="100%" stop-color="#222" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <div class="menu-dropdown-title" data-i18n="lbl_generate_zdata_caps">GENERATE Z-DATA</div>
+                <div class="pal-menu-section-label header-linear" data-i18n="lbl_linear_gradients">LINEAR GRADIENTS
+                </div>
+                <div id="cmGenZ_VDown" class="cm-item" data-i18n-tooltip="tt_genz_vdown"><svg width="14" height="14"
+                        style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                        <rect width="14" height="14" fill="url(#gzc-vdown)" />
+                    </svg><span data-i18n="opt_genz_vdown">Top → Bottom (↓)</span></div>
+                <div id="cmGenZ_VUp" class="cm-item" data-i18n-tooltip="tt_genz_vup"><svg width="14" height="14"
+                        style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                        <rect width="14" height="14" fill="url(#gzc-vup)" />
+                    </svg><span data-i18n="opt_genz_vup">Bottom → Top (↑)</span></div>
+                <div id="cmGenZ_HRight" class="cm-item" data-i18n-tooltip="tt_genz_hright"><svg width="14" height="14"
+                        style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                        <rect width="14" height="14" fill="url(#gzc-hright)" />
+                    </svg><span data-i18n="opt_genz_hright">Left → Right (→)</span></div>
+                <div id="cmGenZ_HLeft" class="cm-item" data-i18n-tooltip="tt_genz_hleft"><svg width="14" height="14"
+                        style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                        <rect width="14" height="14" fill="url(#gzc-hleft)" />
+                    </svg><span data-i18n="opt_genz_hleft">Right → Left (←)</span></div>
+                <div class="cm-divider"></div>
+                <div class="pal-menu-section-label header-mirror" data-i18n="lbl_mirror_gradients">MIRROR MODES</div>
+                <div id="cmGenZ_MirrorV" class="cm-item" data-i18n-tooltip="tt_genz_mirrorv"><svg width="14" height="14"
+                        style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                        <rect width="14" height="14" fill="url(#gzc-mirv)" />
+                    </svg><span data-i18n="menu_genz_mirrorv">Vertical Mirror (Peak) ↕</span></div>
+                <div id="cmGenZ_MirrorVInv" class="cm-item" data-i18n-tooltip="tt_genz_mirrorvinv"><svg width="14"
+                        height="14" style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                        <rect width="14" height="14" fill="url(#gzc-mirvinv)" />
+                    </svg><span data-i18n="menu_genz_mirrorvinv">Vertical Mirror (Valley) ⇅</span></div>
+                <div id="cmGenZ_MirrorH" class="cm-item" data-i18n-tooltip="tt_genz_mirrorh"><svg width="14" height="14"
+                        style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                        <rect width="14" height="14" fill="url(#gzc-mirh)" />
+                    </svg><span data-i18n="menu_genz_mirrorh">Horizontal Mirror (Peak) ↔</span></div>
+                <div id="cmGenZ_MirrorHInv" class="cm-item" data-i18n-tooltip="tt_genz_mirrorhinv"><svg width="14"
+                        height="14" style="margin-right:8px;border:1px solid #555;border-radius:2px;flex-shrink:0;">
+                        <rect width="14" height="14" fill="url(#gzc-mirhinv)" />
+                    </svg><span data-i18n="menu_genz_mirrorhinv">Horizontal Mirror (Valley) ⇄</span></div>
+            </div>
+        </div>
+        <div class="cm-divider"></div>
+        <div id="cmCut" class="cm-item" data-i18n-tooltip="tt_menu_cut">
+            <span class="cm-label"><span class="menu-icon icon-cut"></span><span data-i18n="menu_cut">Cut</span></span>
+            <span class="cm-shortcut">Ctrl+X</span>
+        </div>
+        <div class="cm-item cm-has-submenu" data-i18n-tooltip="tt_menu_copy_sub">
+            <span class="cm-label"><span class="menu-icon icon-copy"></span><span
+                    data-i18n="menu_copy">Copy</span></span>
+            <span class="cm-arrow">▶</span>
+            <div class="cm-submenu">
+                <div class="menu-dropdown-title" data-i18n="lbl_copy_caps">COPY</div>
+                <div class="pal-menu-section-label header-data" data-i18n="lbl_section_data">DATA</div>
+                <div id="cmCopyFull" class="cm-item" data-i18n-tooltip="tt_opt_copy_cell_extra"><span
+                        data-i18n="opt_copy_cell_extra">Full Cell + Extra
+                        Data</span><span class="cm-shortcut">Ctrl+C</span></div>
+                <div id="cmCopyOnlyCell" class="cm-item" data-i18n-tooltip="tt_opt_copy_cell"><span
+                        data-i18n="opt_copy_cell">Only Cell</span><span class="cm-shortcut">Ctrl+1</span></div>
+                <div id="cmCopyOnlyExtra" class="cm-item" data-i18n-tooltip="tt_opt_copy_extra"><span
+                        data-i18n="opt_copy_extra">Only Extra Data</span><span class="cm-shortcut">Ctrl+2</span></div>
+                <div class="cm-divider"></div>
+                <div class="pal-menu-section-label header-image" data-i18n="lbl_section_image">IMAGE</div>
+                <div id="cmCopyImgMerged" class="cm-item" data-i18n-tooltip="tt_opt_copy_img_merged"><span
+                        data-i18n="opt_copy_img_merged">Cell & Extra Data
+                        Merged</span><span class="cm-shortcut">Shift+3</span></div>
+                <div id="cmCopyImgCell" class="cm-item" data-i18n-tooltip="tt_opt_copy_img_cell"><span
+                        data-i18n="opt_copy_img_cell">Only Cell</span><span class="cm-shortcut">Shift+1</span></div>
+                <div id="cmCopyImgExtra" class="cm-item" data-i18n-tooltip="tt_opt_copy_img_extra"><span
+                        data-i18n="opt_copy_img_extra">Only Extra
+                        Data</span><span class="cm-shortcut">Shift+2</span></div>
+                <div id="cmCopyImgFullCanvas" class="cm-item" data-i18n-tooltip="tt_opt_copy_img_canvas"><span
+                        data-i18n="menu_copy_full_canvas">Whole
+                        Canvas</span><span class="cm-shortcut">Shift+4</span></div>
+                <div class="cm-divider"></div>
+                <div class="pal-menu-section-label header-zdata" data-i18n="lbl_section_zdata">Z-DATA</div>
+                <div id="cmCopyZMerged" class="cm-item" data-i18n-tooltip="tt_opt_copy_z_merged"><span
+                        data-i18n="opt_copy_z_merged">Cell & Extra Data
+                        Merged</span><span class="cm-shortcut">Shift+7</span></div>
+                <div id="cmCopyZCell" class="cm-item" data-i18n-tooltip="tt_opt_copy_z_cell"><span
+                        data-i18n="opt_copy_z_cell">Only Cell</span><span class="cm-shortcut">Shift+5</span></div>
+                <div id="cmCopyZExtra" class="cm-item" data-i18n-tooltip="tt_opt_copy_z_extra"><span
+                        data-i18n="menu_only_extra">Only Extra Data</span><span class="cm-shortcut">Shift+6</span></div>
+                <div id="cmCopyZFullCanvas" class="cm-item" data-i18n-tooltip="tt_opt_copy_z_canvas"><span
+                        data-i18n="menu_copy_full_canvas">Whole
+                        Canvas</span><span class="cm-shortcut">Shift+8</span></div>
+                <div class="cm-divider"></div>
+                <div class="pal-menu-section-label header-placeholder" data-i18n="lbl_section_placeholder">DATA
+                    PLACEHOLDER</div>
+                <div id="cmCopyPlaceMerged" class="cm-item" data-i18n-tooltip="tt_copy_place"><span
+                        data-i18n="opt_copy_place_merged">Cell & Extra Data Merged</span></div>
+                <div id="cmCopyPlaceCell" class="cm-item" data-i18n-tooltip="tt_copy_place"><span
+                        data-i18n="opt_copy_place_cell">Only Cell</span></div>
+                <div id="cmCopyPlaceExtra" class="cm-item" data-i18n-tooltip="tt_copy_place"><span
+                        data-i18n="opt_copy_place_extra">Only Extra Data</span></div>
+                <div id="cmCopyPlaceCanvas" class="cm-item" data-i18n-tooltip="tt_copy_place"><span
+                        data-i18n="opt_copy_place_canvas">Whole Canvas</span></div>
+            </div>
+        </div>
+        <div class="cm-item cm-has-submenu" data-i18n-tooltip="tt_menu_paste_sub">
+            <span class="cm-label"><span class="menu-icon icon-paste"></span><span
+                    data-i18n="menu_paste">Paste</span></span>
+            <span class="cm-arrow">▶</span>
+            <div class="cm-submenu">
+                <div class="menu-dropdown-title" data-i18n="lbl_paste_caps">PASTE</div>
+                <div class="pal-menu-section-label header-data" data-i18n="lbl_section_data">DATA</div>
+                <div id="cmPasteFull" class="cm-item" data-i18n-tooltip="tt_menu_paste"><span
+                        data-i18n="opt_paste_full">Full Cell + Extra
+                        Data</span><span class="cm-shortcut">Ctrl+V</span></div>
+                <div id="cmPasteOnlyCell" class="cm-item" data-i18n-tooltip="tt_opt_paste_cell"><span
+                        data-i18n="opt_paste_cell">Only Cell</span></div>
+                <div id="cmPasteOnlyExtra" class="cm-item" data-i18n-tooltip="tt_opt_paste_extra"><span
+                        data-i18n="opt_paste_extra">Extra Data</span></div>
+                <div class="cm-divider"></div>
+                <div class="pal-menu-section-label header-image" data-i18n="lbl_section_image">IMAGE</div>
+                <div id="cmPasteImgMerged" class="cm-item" data-i18n-tooltip="tt_opt_paste_full"><span
+                        data-i18n="opt_paste_img_merged">Cell & Extra Data
+                        Merged</span><span class="cm-shortcut">Alt+3</span></div>
+                <div id="cmPasteImgCell" class="cm-item" data-i18n-tooltip="tt_opt_paste_cell"><span
+                        data-i18n="opt_paste_img_cell">Only Cell</span><span class="cm-shortcut">Alt+1</span></div>
+                <div id="cmPasteImgExtra" class="cm-item" data-i18n-tooltip="tt_opt_paste_extra"><span
+                        data-i18n="opt_paste_img_extra">Only Extra
+                        Data</span><span class="cm-shortcut">Alt+2</span></div>
+                <div id="cmPasteImgFullCanvas" class="cm-item" data-i18n-tooltip="tt_opt_paste_img_canvas"><span
+                        data-i18n="menu_paste_full_canvas">Whole
+                        Canvas</span><span class="cm-shortcut">Alt+4</span></div>
+                <div class="cm-divider"></div>
+                <div class="pal-menu-section-label header-zdata" data-i18n="lbl_section_zdata">Z-DATA</div>
+                <div id="cmPasteZMerged" class="cm-item" data-i18n-tooltip="tt_opt_paste_full"><span
+                        data-i18n="opt_paste_z_merged">Cell & Extra Data
+                        Merged</span><span class="cm-shortcut">Alt+7</span></div>
+                <div id="cmPasteZCell" class="cm-item" data-i18n-tooltip="tt_opt_paste_cell"><span
+                        data-i18n="opt_paste_z_cell">Only Cell</span><span class="cm-shortcut">Alt+5</span></div>
+                <div id="cmPasteZExtra" class="cm-item" data-i18n-tooltip="tt_opt_paste_extra"><span
+                        data-i18n="menu_only_extra">Only Extra Data</span><span class="cm-shortcut">Alt+6</span></div>
+                <div id="cmPasteZFullCanvas" class="cm-item" data-i18n-tooltip="tt_opt_paste_z_canvas"><span
+                        data-i18n="menu_paste_full_canvas">Whole
+                        Canvas</span><span class="cm-shortcut">Alt+8</span></div>
+            </div>
+        </div>
+        <div class="cm-item cm-has-submenu" data-i18n-tooltip="tt_menu_paste_into_sub">
+            <span class="cm-label"><span class="menu-icon icon-paste"></span><span
+                    data-i18n="menu_paste_into_sub">Forced Paste</span></span>
+            <span class="cm-arrow">▶</span>
+            <div class="cm-submenu">
+                <div class="menu-dropdown-title" data-i18n="lbl_forced_paste_caps">FORCED PASTE</div>
+                <div class="pal-menu-section-label header-data" data-i18n="lbl_section_data">DATA</div>
+                <div id="cmPasteIntoFull" class="cm-item" data-i18n-tooltip="tt_opt_paste_full"><span
+                        data-i18n="opt_paste_full">Full Cell + Extra
+                        Data</span><span class="cm-shortcut">Shift+Ctrl+V</span></div>
+                <div id="cmPasteIntoOnlyCell" class="cm-item" data-i18n-tooltip="tt_opt_paste_cell"><span
+                        data-i18n="opt_paste_cell">Only Cell</span></div>
+                <div id="cmPasteIntoOnlyExtra" class="cm-item" data-i18n-tooltip="tt_opt_paste_extra"><span
+                        data-i18n="opt_paste_extra">Extra Data</span></div>
+                <div class="cm-divider"></div>
+                <div class="pal-menu-section-label header-cross" data-i18n="lbl_section_cross">CROSS-LAYER</div>
+                <div id="cmPasteImgIntoZ" class="cm-item" data-i18n-tooltip="tt_paste_img_into_z"><span
+                        data-i18n="opt_paste_img_into_z">Paste Image into
+                        Z-Data</span></div>
+                <div id="cmPasteZIntoImg" class="cm-item" data-i18n-tooltip="tt_paste_z_into_img"><span
+                        data-i18n="opt_paste_z_into_img">Paste Z-Data into
+                        Image</span></div>
+            </div>
+        </div>
+        <div class="cm-divider"></div>
+        <div class="cm-item cm-has-submenu" data-i18n-tooltip="tt_menu_load_from">
+            <span class="cm-label"><span class="menu-icon icon-load-from"></span><span data-i18n="menu_load_from">Load
+                    from...</span></span>
+            <span class="cm-arrow">▶</span>
+            <div class="cm-submenu">
+                <div class="menu-dropdown-title" data-i18n="lbl_load_from_caps">LOAD FROM</div>
+                <div class="pal-menu-section-label header-image" data-i18n="lbl_section_image">IMAGE</div>
+                <div id="cmLoadImgMerged" class="cm-item" data-i18n-tooltip="tt_opt_load_img_merged"><span
+                        data-i18n="opt_load_img_merged">Cell & Extra Data
+                        Merged</span></div>
+                <div id="cmLoadImgCell" class="cm-item" data-i18n-tooltip="tt_opt_load_img_cell"><span
+                        data-i18n="opt_load_img_cell">Only Cell</span></div>
+                <div id="cmLoadImgExtra" class="cm-item" data-i18n-tooltip="tt_opt_load_img_extra"><span
+                        data-i18n="menu_only_extra">Only Extra Data</span></div>
+                <div id="cmLoadImgFullCanvas" class="cm-item" data-i18n-tooltip="tt_opt_load_img_total"><span
+                        data-i18n="menu_copy_full_canvas">Whole
+                        Canvas</span></div>
+                <div class="cm-divider"></div>
+                <div class="pal-menu-section-label header-zdata" data-i18n="lbl_section_zdata">Z-DATA</div>
+                <div id="cmLoadZMerged" class="cm-item" data-i18n-tooltip="tt_opt_load_z_merged"><span
+                        data-i18n="opt_load_z_merged">Cell & Extra Data
+                        Merged</span></div>
+                <div id="cmLoadZCell" class="cm-item" data-i18n-tooltip="tt_opt_load_z_cell"><span
+                        data-i18n="opt_load_z_cell">Only Cell</span></div>
+                <div id="cmLoadZExtra" class="cm-item" data-i18n-tooltip="tt_opt_load_z_extra"><span
+                        data-i18n="menu_only_extra">Only Extra Data</span></div>
+                <div id="cmLoadZFullCanvas" class="cm-item" data-i18n-tooltip="tt_opt_load_z_total"><span
+                        data-i18n="menu_copy_full_canvas">Whole Canvas</span>
+                </div>
+            </div>
+        </div>
+        <div class="cm-item cm-has-submenu" data-i18n-tooltip="tt_menu_save_to">
+            <span class="cm-label"><span class="menu-icon icon-save-to"></span><span data-i18n="menu_save_to">Save
+                    to...</span></span>
+            <span class="cm-arrow">▶</span>
+            <div class="cm-submenu">
+                <div class="menu-dropdown-title" data-i18n="lbl_save_to_caps">SAVE TO</div>
+                <div class="pal-menu-section-label header-image" data-i18n="lbl_section_image">IMAGE</div>
+                <div id="cmSaveImgMerged" class="cm-item" data-i18n-tooltip="tt_opt_save_img_merged"><span
+                        data-i18n="opt_save_img_merged">Cell & Extra Data
+                        Merged</span></div>
+                <div id="cmSaveImgCell" class="cm-item" data-i18n-tooltip="tt_opt_save_img_cell"><span
+                        data-i18n="opt_save_img_cell">Only Cell</span></div>
+                <div id="cmSaveImgExtra" class="cm-item" data-i18n-tooltip="tt_opt_save_img_extra"><span
+                        data-i18n="menu_only_extra">Only Extra Data</span></div>
+                <div id="cmSaveImgFullCanvas" class="cm-item" data-i18n-tooltip="tt_opt_save_img_total"><span
+                        data-i18n="menu_copy_full_canvas">Whole
+                        Canvas</span></div>
+                <div class="cm-divider"></div>
+                <div class="pal-menu-section-label header-zdata" data-i18n="lbl_section_zdata">Z-DATA</div>
+                <div id="cmSaveZMerged" class="cm-item" data-i18n-tooltip="tt_opt_save_z_merged"><span
+                        data-i18n="opt_save_z_merged">Cell & Extra Data
+                        Merged</span></div>
+                <div id="cmSaveZCell" class="cm-item" data-i18n-tooltip="tt_opt_save_z_cell"><span
+                        data-i18n="opt_save_z_cell">Only Cell</span></div>
+                <div id="cmSaveZExtra" class="cm-item" data-i18n-tooltip="tt_opt_save_z_extra"><span
+                        data-i18n="menu_only_extra">Only Extra Data</span></div>
+                <div id="cmSaveZFullCanvas" class="cm-item" data-i18n-tooltip="tt_opt_save_z_total"><span
+                        data-i18n="menu_copy_full_canvas">Whole Canvas</span>
+                </div>
+            </div>
+        </div>
+        <div class="cm-divider"></div>
+        <div id="cmSelectAll" class="cm-item" data-i18n-tooltip="tt_menu_select_all">
+            <span class="cm-label"><span class="menu-icon icon-select-all"></span><span
+                    data-i18n="menu_select_all">Select All</span></span>
+            <span class="cm-shortcut">Ctrl+A</span>
+        </div>
+        <div id="cmDeselect" class="cm-item" data-i18n-tooltip="tt_menu_deselect">
+            <span class="cm-label"><span class="menu-icon icon-deselect"></span><span
+                    data-i18n="menu_deselect">Deselect</span></span>
+            <span class="cm-shortcut">Ctrl+D</span>
+        </div>
+        <div id="cmInvertSelection" class="cm-item" data-i18n-tooltip="tt_menu_invert_sel">
+            <span class="cm-label"><span class="menu-icon icon-invert"></span><span data-i18n="menu_invert_sel">Invert
+                    Selection</span></span>
+            <span class="cm-shortcut">Ctrl+I</span>
+        </div>
+        <div class="cm-divider"></div>
+        <div id="cmDelete" class="cm-item" data-i18n-tooltip="tt_menu_delete">
+            <span class="cm-label"><span class="menu-icon icon-delete"></span><span data-i18n="menu_delete">Delete
+                    Selection</span></span>
+            <span class="cm-shortcut">Del</span>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+    <!-- ANIMATION PREVIEW DIALOG -->
+
+    <!-- CUSTOM PALETTE MANAGER DIALOG -->
+    <input type="file" id="fileInPalManager" accept=".pal" hidden multiple>
+    <dialog id="dlgPaletteManager" class="dialog-dark dlg-pal-manager">
+        <div class="dlg-pal-manager-header">
+            <span data-i18n="dlg_manage_palettes">Manage Custom Palettes</span>
+            <button id="btnClosePalManager" class="btn-close-custom" data-i18n-title="tt_pal_mgr_close">✕</button>
+        </div>
+        <div class="dlg-pal-manager-body">
+            <!-- LEFT: Drag & Drop + Preview -->
+            <div class="dlg-pal-preview-panel"
+                style="width: 320px; border-right: 1px solid #2d3748; border-left: none;">
+                <!-- Drop Zone -->
+                <div id="palMgrDropZone" class="pm-drop-zone" style="margin: 0 0 6px 0;">
+                    <span class="pm-drop-zone-text" data-i18n-html="lbl_drag_drop_pal">Drag & Drop .pal files or Click
+                        to
+                        Browse</span>
+                </div>
+
+                <div class="pal-menu-section-label" style="margin-bottom:6px;" data-i18n="lbl_preview">Preview</div>
+                <div id="palMgrPreviewGrid" class="pm-preview-grid palette-grid-wrapper"></div>
+                <div id="palMgrPreviewName"
+                    style="font-size:11px; color:#aaa; margin-top:6px; text-align:center; min-height: 14px;">
+                </div>
+                <!-- Apply Button -->
+                <div style="margin-top: 10px; text-align: center;">
+                    <button id="btnPalMgrApply" class="btn btn-primary"
+                        style="padding: 8px 30px; font-weight: bold; width: 100%; border-radius: 4px;" disabled
+                        data-i18n="btn_apply_palette" data-i18n-tooltip="btn_apply_palette">Apply Palette</button>
+                </div>
+                <div style="flex:1;"></div>
+            </div>
+
+            <!-- RIGHT: Tree + Toolbar -->
+            <div class="dlg-pal-tree-panel" style="flex: 1; border-right: none;">
+                <!-- Toolbar buttons -->
+                <div class="pm-toolbar" style="padding-top: 12px;">
+                    <button id="btnPalMgrNewFolder" class="btn btn-xs" data-i18n-title="tt_pal_mgr_new_folder">📁 <span
+                            data-i18n="btn_new_folder">New Folder</span></button>
+                    <button id="btnPalMgrRename" class="btn btn-xs" data-i18n-title="tt_pal_mgr_rename">✏ <span
+                            data-i18n="btn_rename">Rename</span></button>
+                    <button id="btnPalMgrDelete" class="btn btn-xs btn-danger" data-i18n-title="tt_pal_mgr_delete">🗑
+                        <span data-i18n="btn_delete">Delete</span></button>
+                </div>
+
+                <div style="padding: 4px 10px; display:flex; gap:5px; border-bottom: 1px solid #2d3748;">
+                    <button id="btnPalMgrClearRecent" class="btn btn-xs" style="flex:1; font-size:10px;"
+                        data-i18n-tooltip="btn_clear_recent"><span data-i18n="btn_clear_recent">Clear
+                            Recent</span></button>
+                </div>
+
+                <!-- Tree list -->
+                <div id="palMgrTree" class="pm-tree"></div>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- HIDDEN SVG SYMBOLS FOR ICONS -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+        <symbol id="icon-ts" viewBox="0 0 22 16">
+            <rect width="22" height="16" rx="3" fill="#4ade80" />
+            <text x="11" y="12" font-size="11" font-weight="900" text-anchor="middle"
+                font-family="Inter, system-ui, sans-serif" fill="#000">TS</text>
+        </symbol>
+        <symbol id="icon-ra2" viewBox="0 0 22 16">
+            <rect width="22" height="16" rx="3" fill="#f87171" />
+            <text x="11" y="12" font-size="11" font-weight="900" text-anchor="middle"
+                font-family="Inter, system-ui, sans-serif" fill="#000">RA2</text>
+        </symbol>
+        <symbol id="icon-yr" viewBox="0 0 22 16">
+            <rect width="22" height="16" rx="3" fill="#a78bfa" />
+            <text x="11" y="12" font-size="11" font-weight="900" text-anchor="middle"
+                font-family="Inter, system-ui, sans-serif" fill="#000">YR</text>
+        </symbol>
+    </svg>
+
+    <!-- Custom Prompt Modal -->
+    <dialog id="promptModal" class="dialog-dark"
+        style="width: 320px; border-radius: 8px; border: 1px solid #4a5568; background: #1a202c; color: #e2e8f0; padding: 20px;">
+        <h3 id="promptTitle"
+            style="margin-top: 0; color: var(--accent); font-size: 14px; text-transform: uppercase; letter-spacing: 1px;"
+            data-i18n="dlg_prompt_title">
+            PROMPT</h3>
+        <p id="promptMessage" style="font-size: 12px; color: #a0aec0; margin-bottom: 15px;"></p>
+        <input type="text" id="promptInput"
+            style="width: 100%; background: #2d3748; border: 1px solid #4a5568; color: #fff; padding: 8px; border-radius: 4px; font-size: 13px; margin-bottom: 20px; outline: none;">
+        <div style="display:flex; justify-content: flex-end; gap: 10px;">
+            <button id="btnPromptCancel" class="btn btn-xs" style="background:#4a5568;"
+                data-i18n="btn_cancel">CANCEL</button>
+            <button id="btnPromptOk" class="btn btn-xs btn-primary" style="min-width: 60px;"
+                data-i18n="btn_ok">OK</button>
+        </div>
+    </dialog>
+
+
+
+
+
+    <div id="dropZoneOverlay"
+        style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,255,170,0.08); border: 4px dashed #00ffaa; z-index:99999; display:none; align-items:center; justify-content:center; pointer-events:none; backdrop-filter:blur(5px); transition: opacity 0.3s ease, visibility 0.3s ease; opacity: 0; visibility: hidden; user-select: none;">
+        <div
+            style="display: flex; flex-direction: column; align-items: center; background: #0b0e14; padding: 50px 80px; border-radius: 24px; border: 3px solid #00ffaa; box-shadow: 0 0 60px rgba(0, 255, 170, 0.4); text-align: center;">
+            <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="#00ffaa" stroke-width="1.2"
+                stroke-linecap="round" stroke-linejoin="round"
+                style="margin-bottom: 30px; filter: drop-shadow(0 0 15px rgba(0, 255, 170, 0.4));">
+                <!-- Background rectangle (high top) -->
+                <rect x="4" y="1" width="16" height="14" rx="2" stroke="#ffffff" stroke-dasharray="3 3"
+                    stroke-opacity="0.6"></rect>
+                <!-- Arrow (shifted down) -->
+                <polyline points="17 11 12 6 7 11"></polyline>
+                <line x1="12" y1="6" x2="12" y2="18"></line>
+                <!-- Tray (shifted down) -->
+                <path d="M21 18v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            </svg>
+            <div style="color: #ffffff; font-size: 32px; font-weight: 900; text-transform: uppercase; letter-spacing: 3px; line-height: 1.2;"
+                data-i18n="msg_drop_to_open">
+                DROP HERE TO OPEN TMP FILES
+            </div>
+            <div style="color: #ffffff; font-size: 32px; font-weight: 900; text-transform: uppercase; letter-spacing: 3px; line-height: 1.2; margin-top: 5px;"
+                data-i18n="msg_drop_to_open_sub">
+                IN NEW TABS!
+            </div>
+        </div>
+    </div>
+    <input type="file" id="menuLoadFileInput" accept="image/*,.pcx" style="display:none">
+</body>
+
+</html>

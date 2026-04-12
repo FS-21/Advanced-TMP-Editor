@@ -1,0 +1,19 @@
+<svg width="512" height="512" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="80" height="80" fill="#0d0e12"/>
+  <g transform="translate(8, 8)">
+    <text x="32" y="26" text-anchor="middle" fill="#ffffff" font-family="Verdana, sans-serif" font-weight="950" font-size="22" letter-spacing="-1">TMP</text>
+    <g stroke-linejoin="round">
+      <g stroke="#00ff9d" stroke-width="0.8" opacity="0.5">
+        <path d="M18 37L46 51 M11 40.5L39 54.5 M25 33.5L53 47.5" />
+        <path d="M46 37L18 51 M53 40.5L25 54.5 M39 33.5L11 47.5" />
+      </g>
+      <path d="M32 30V58 M4 44H60" stroke="#ffffff" stroke-width="1.2" opacity="0.8"/>
+      <g stroke="#ffffff" stroke-width="1.8" fill="#ffffff15">
+        <path d="M39 33.5L46 37L39 40.5L32 37Z" />
+        <path d="M46 37L53 40.5L46 44L39 40.5Z" />
+        <path d="M39 47.5L46 51L39 54.5L32 51Z" />
+      </g>
+      <path d="M32 30L60 44L32 58L4 44L32 30Z" stroke="#00ff9d" stroke-width="2.5"/>
+    </g>
+  </g>
+</svg>
