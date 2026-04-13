@@ -1,5 +1,7 @@
 # Advanced TMP Editor (ATE)
 
+<img width="1360" height="718" alt="image" src="https://github.com/user-attachments/assets/29ea2370-b4b7-4791-a9a8-0c88a1773ead" />
+
 A specialized web-based tool for managing and editing Westwood Studios' `.TMP` terrain file format.
 
 > **Experiment & Vision:** This project is an **"AI-Vibe Coding"** experiment using the **Antigravity IDE**, exploring the limits of non-stop, instruction-based development to create high-performance, legacy format editors. Developed by **FS-21** (*C&C Reloaded* modder and lead developer).
