@@ -49,7 +49,6 @@ The TMP editor supports multiple languages:
 - **Russian** (RU)
 - **German** (DE)
 - **French** (FR)
-- **Portuguese** (PT)
 - **Chinese** (Simplified & Traditional)
 
 ## 🔨 How to Build
