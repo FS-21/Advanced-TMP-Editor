@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script>const APP_VERSION = 'v1.1';</script>
+    <script>const APP_VERSION = 'v1.2';</script>
     <script>
         window.CnCReloadedMode = true;
         document.addEventListener("DOMContentLoaded", () => {
@@ -432,19 +432,6 @@
             gap: 12px;
             position: relative;
             cursor: default;
-        }
-
-        .cm-item * {
-            pointer-events: none;
-        }
-
-        .cm-item.cm-has-submenu {
-            pointer-events: auto;
-            /* Submenu items must trigger hover */
-        }
-
-        .cm-item.cm-has-submenu>* {
-            pointer-events: none;
         }
 
         .cm-item:hover {
