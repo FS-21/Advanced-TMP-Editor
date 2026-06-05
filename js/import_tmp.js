@@ -3,6 +3,12 @@ import { state, TRANSPARENT_COLOR } from './state.js';
 import { SVG_PLAY_MODERN as SVG_PLAY, SVG_PAUSE_MODERN as SVG_PAUSE, SVG_STEP_FWD_MODERN as SVG_STEP_FORWARD } from './utils.js';
 import { elements, LAND_TYPE_NAMES, getLandTypeName, getRampTypeName } from './constants.js';
 import { t } from './translations.js';
+import { GAME_PALETTES } from './game_palettes.js';
+import { parsePaletteBuffer } from './file_io.js';
+import { renderPaletteSimple } from './ui.js';
+import { updatePaletteSelectorUI } from './palette_menu.js';
+
+let importPaletteSelectedManually = false;
 
 let impTmpPalette = new Array(256).fill(null);
 let impTmpData = null; // { header, tiles, numTiles }
@@ -26,7 +32,7 @@ export function initImportTmp(onConfirm) {
                 const [handle] = await window.showOpenFilePicker({
                     types: [{
                         description: 'Westwood TMP Files',
-                        accept: { 'application/x-wwn-tmp': ['.tem', '.sno', '.urb', '.des', '.ubn', '.lun'] }
+                        accept: { 'application/x-wwn-tmp-all': ['.tem', '.sno', '.urb', '.des', '.ubn', '.lun'] }
                     }],
                     excludeAcceptAllOption: true
                 });
@@ -54,6 +60,8 @@ export function initImportTmp(onConfirm) {
                     updateFrameLimits();
                     if (elements.impTmpSlider) elements.impTmpSlider.value = 0;
                     
+                    autoDetectImportPalette(impTmpData.header.cx, file.name);
+
                     console.log(`[Import] TMP Parsed: ${impTmpData.numTiles} tiles. Initializing preview...`);
                     renderImportFrame(0);
                     updateImportUI();
@@ -90,6 +98,8 @@ export function initImportTmp(onConfirm) {
                 impTmpFrameIdx = 0;
                 updateFrameLimits();
                 if (elements.impTmpSlider) elements.impTmpSlider.value = 0;
+
+                autoDetectImportPalette(impTmpData.header.cx, file.name);
 
                 renderImportFrame(0);
                 updateImportUI();
@@ -149,8 +159,11 @@ export function initImportTmp(onConfirm) {
 
 }
 
-export function syncImporterPalette(palette) {
+export function syncImporterPalette(palette, isManual = false) {
     if (!palette) return;
+    if (isManual) {
+        importPaletteSelectedManually = true;
+    }
     // Clone palette to avoid reference issues
     impTmpPalette = palette.map(c => c ? { ...c } : null);
     renderImportPalette();
@@ -160,10 +173,26 @@ export function syncImporterPalette(palette) {
 
 export function resetImportState() {
     console.log("[Import] Resetting importer state...");
+    importPaletteSelectedManually = false;
     impTmpData = null;
     window.curImportTmpData = null;
     impTmpFrameIdx = 0;
     stopAnimation();
+
+    // Restore default text and icon for import dropdown button
+    const el = document.getElementById('menuItemImpPalettes');
+    if (el) {
+        const btn = el.querySelector('.menu-btn');
+        if (btn) {
+            let iconContainer = btn.querySelector('.menu-icon');
+            if (iconContainer) iconContainer.innerText = '🎨';
+            const nameSpan = btn.querySelector('span:not(.menu-icon):not(.arrow)');
+            if (nameSpan) {
+                nameSpan.innerText = t('btn_select_palette') || 'SELECT PALETTE';
+                nameSpan.setAttribute('data-i18n', 'btn_select_palette');
+            }
+        }
+    }
 
     // Clear Canvas
     if (elements.impTmpCanvas) {
@@ -337,5 +366,70 @@ function stopAnimation() {
         clearInterval(impTmpTimer);
         impTmpTimer = null;
         if (elements.btnImpTmpPlay) elements.btnImpTmpPlay.innerHTML = SVG_PLAY;
+    }
+}
+
+function autoDetectImportPalette(cx, filename) {
+    if (importPaletteSelectedManually || !filename) return;
+    
+    const ext = filename.split('.').pop().toLowerCase();
+    let autoPaletteId = null;
+
+    if (cx === 48) {
+        if (ext === 'sno') {
+            autoPaletteId = 'game_ts_isosno';
+        } else {
+            autoPaletteId = 'game_ts_isotem';
+        }
+    } else if (cx === 60) {
+        if (ext === 'sno') {
+            autoPaletteId = 'game_ra2_isosno';
+        } else if (ext === 'tem') {
+            autoPaletteId = 'game_ra2_isotem';
+        } else if (ext === 'urb') {
+            autoPaletteId = 'game_ra2_isourb';
+        } else if (ext === 'des') {
+            autoPaletteId = 'game_yr_isodes';
+        } else if (ext === 'ubn') {
+            autoPaletteId = 'game_yr_isoubn';
+        } else if (ext === 'lun') {
+            autoPaletteId = 'game_yr_isolun';
+        } else {
+            autoPaletteId = 'game_ra2_isotem';
+        }
+    }
+
+    if (autoPaletteId) {
+        // Find node b64
+        let node = null;
+        for (const cat in GAME_PALETTES) {
+            const found = GAME_PALETTES[cat].find(p => p.id === autoPaletteId);
+            if (found) {
+                node = found;
+                break;
+            }
+        }
+        if (node && node.b64) {
+            try {
+                // Decode base64
+                const bin = atob(node.b64);
+                const bytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                const buffer = bytes.buffer;
+                
+                const palArray = parsePaletteBuffer(buffer);
+                syncImporterPalette(palArray, false);
+                
+                // Update UI text and icon using the shared helper
+                updatePaletteSelectorUI('menuItemImpPalettes', node);
+                
+                // Render Simple
+                if (typeof renderPaletteSimple === 'function') {
+                    renderPaletteSimple(palArray, document.getElementById('impTmpPalGrid'));
+                }
+            } catch (e) {
+                console.error("Auto detect import palette decode error:", e);
+            }
+        }
     }
 }

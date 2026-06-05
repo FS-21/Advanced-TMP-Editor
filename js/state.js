@@ -8,7 +8,7 @@ export class Tab {
         this.isNewProject = false;
         this.fileHandle = null; // Stores Native File System handle for direct save
 
-        this.palette = initialState ? JSON.parse(JSON.stringify(initialState.palette)) : Array.from({ length: 256 }, () => ({r:0, g:0, b:0}));
+        this.palette = initialState ? JSON.parse(JSON.stringify(initialState.palette)) : Array.from({ length: 256 }, () => null);
         this.tmpData = null; 
         this.currentTileIdx = -1;
         this.tiles = [];
@@ -68,12 +68,13 @@ export class Tab {
         this.hasMismatches = false;
         this.savedHistoryPtr = -1; // Track which history point is the 'saved' one
         this._isRestoringHistory = false;
+        this.paletteSelectedManually = false;
     }
 }
 
 export const state = {
     // Current active state (proxied or swapped)
-    palette: Array.from({ length: 256 }, () => ({r:0, g:0, b:0})),
+    palette: Array.from({ length: 256 }, () => null),
     tmpData: null,
     currentTileIdx: -1,
     tiles: [],
@@ -124,6 +125,7 @@ export const state = {
     fileHandle: null, // Current active file handle
     savedHistoryPtr: -1, // Track which history point is the 'saved' one
     _isRestoringHistory: false,
+    paletteSelectedManually: false,
 
     // NEW: Tab Management
     tabs: [],

@@ -336,10 +336,11 @@ function setupEventListeners() {
 
     if (elements.fileInTmp) elements.fileInTmp.onchange = async (e) => {
         if (!e.target.files.length) return;
-        const buf = await e.target.files[0].arrayBuffer();
+        const file = e.target.files[0];
+        const buf = await file.arrayBuffer();
         try {
             const tmp = TmpTsFile.parse(buf);
-            loadTmpData(tmp);
+            loadTmpData(tmp, file.name);
         } catch (err) {
             console.error(err);
             alert("Error loading TMP: " + err.message);
@@ -1141,7 +1142,7 @@ function handleConfirmImport(impTmpData, impTmpPalette) {
     }
 
     // 2. Use Native Loader
-    loadTmpData(impTmpData);
+    loadTmpData(impTmpData, impTmpData.filename || '');
 
     // 3. Update UI
     pushHistory("all");
@@ -1158,6 +1159,33 @@ function handleConfirmImport(impTmpData, impTmpPalette) {
 function openNewTmpDialog() {
     const dialog = document.getElementById('newTmpDialog');
     if (!dialog) return;
+
+    // Reset temporary palette selection
+    window.tempNewTmpPalette = null;
+    const btnCreate = document.getElementById('btnCreateNewTmp');
+    if (btnCreate) {
+        btnCreate.disabled = true;
+        btnCreate.setAttribute('disabled', 'true');
+    }
+    const info = document.getElementById('newTmpPalInfo');
+    if (info) info.innerText = (t('btn_select_palette') || 'SELECT PALETTE') + '...';
+    const previewGrid = document.getElementById('newTmpPalPreview');
+    if (previewGrid) previewGrid.innerHTML = '';
+
+    // Restore default text and icon for new project dropdown button
+    const el = document.getElementById('menuItemNewPalettes');
+    if (el) {
+        const btn = el.querySelector('.menu-btn');
+        if (btn) {
+            let iconContainer = btn.querySelector('.menu-icon');
+            if (iconContainer) iconContainer.innerText = '🎨';
+            const nameSpan = btn.querySelector('span:not(.menu-icon):not(.arrow)');
+            if (nameSpan) {
+                nameSpan.innerText = t('btn_select_palette') || 'SELECT PALETTE';
+                nameSpan.setAttribute('data-i18n', 'btn_select_palette');
+            }
+        }
+    }
 
     if (typeof dialog.showModal === 'function') dialog.showModal();
     else {
@@ -1208,9 +1236,18 @@ function initNewTmpDialog() {
             }
 
             if (confirmed) {
-                const finalPal = state.palette && state.palette.length === 256 ? state.palette.map(c => c ? { ...c } : null) : null;
+                // Use selected palette or fallback to current state palette if valid
+                const finalPal = window.tempNewTmpPalette || (state.palette && state.palette.length === 256 && state.palette[0] !== null ? state.palette.map(c => c ? { ...c } : null) : null);
 
                 createNewProject(tileW, tileH, finalPal, 3, true);
+
+                if (window.tempNewTmpPalette) {
+                    for (let i = 0; i < 256; i++) {
+                        state.palette[i] = window.tempNewTmpPalette[i];
+                    }
+                    state.paletteVersion++;
+                    window.tempNewTmpPalette = null; // Clean up
+                }
 
                 state.tmpData = {
                     header: {

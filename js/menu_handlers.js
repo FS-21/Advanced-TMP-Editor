@@ -1006,7 +1006,7 @@ async function openRecentFile(handle, paletteId, openInNewTab = false) {
             }
 
             const tmp = TmpTsFile.parse(buf);
-            loadTmpData(tmp);
+            loadTmpData(tmp, file.name);
             
             // 2.5 Update Tab Name
             if (window.updateCurrentTabName) {

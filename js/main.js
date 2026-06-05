@@ -451,15 +451,15 @@ function setupEventListeners() {
 
     if (elements.fileInTmp) elements.fileInTmp.onchange = async (e) => {
         if (!e.target.files.length) return;
-        const buf = await e.target.files[0].arrayBuffer();
+        const file = e.target.files[0];
+        const buf = await file.arrayBuffer();
         try {
             const tmp = TmpTsFile.parse(buf);
-            loadTmpData(tmp);
+            loadTmpData(tmp, file.name);
         } catch (err) {
             console.error("Failed to load TMP:", err);
             alert(t('msg_err_load_tmp').replace('{{error}}', err.message));
-        }
- finally {
+        } finally {
             if (elements.fileInTmp) elements.fileInTmp.value = '';
         }
     };
@@ -1247,7 +1247,7 @@ function handleConfirmImport(impTmpData, impTmpPalette) {
     }
 
     // 2. Use Native Loader
-    loadTmpData(impTmpData);
+    loadTmpData(impTmpData, impTmpData.filename || '');
 
     // 2.5 Update Tab Name
     if (impTmpData.filename) {
@@ -1276,6 +1276,33 @@ async function openNewTmpDialog() {
     if (state.hasChanges && state.tmpData) {
         const confirmed = await showConfirm(t('dlg_confirm_title'), t('msg_confirm_close_tab') || "Are you sure? Any unsaved changes will be lost.");
         if (!confirmed) return;
+    }
+
+    // Reset temporary palette selection
+    window.tempNewTmpPalette = null;
+    const btnCreate = document.getElementById('btnCreateNewTmp');
+    if (btnCreate) {
+        btnCreate.disabled = true;
+        btnCreate.setAttribute('disabled', 'true');
+    }
+    const info = document.getElementById('newTmpPalInfo');
+    if (info) info.innerText = (t('btn_select_palette') || 'SELECT PALETTE') + '...';
+    const previewGrid = document.getElementById('newTmpPalPreview');
+    if (previewGrid) previewGrid.innerHTML = '';
+
+    // Restore default text and icon for new project dropdown button
+    const el = document.getElementById('menuItemNewPalettes');
+    if (el) {
+        const btn = el.querySelector('.menu-btn');
+        if (btn) {
+            let iconContainer = btn.querySelector('.menu-icon');
+            if (iconContainer) iconContainer.innerText = '🎨';
+            const nameSpan = btn.querySelector('span:not(.menu-icon):not(.arrow)');
+            if (nameSpan) {
+                nameSpan.innerText = t('btn_select_palette') || 'SELECT PALETTE';
+                nameSpan.setAttribute('data-i18n', 'btn_select_palette');
+            }
+        }
     }
 
     if (typeof dialog.showModal === 'function') dialog.showModal();
@@ -1339,9 +1366,18 @@ function initNewTmpDialog() {
                 state.cy = tileH;
                 state.gameType = isTS ? 'ts' : 'ra2';
 
-                const finalPal = state.palette && state.palette.length === 256 ? state.palette.map(c => c ? { ...c } : null) : null;
+                // Use selected palette or fallback to current state palette if valid
+                const finalPal = window.tempNewTmpPalette || (state.palette && state.palette.length === 256 && state.palette[0] !== null ? state.palette.map(c => c ? { ...c } : null) : null);
 
                 createNewProject(tileW, tileH, finalPal, 3, true);
+
+                if (window.tempNewTmpPalette) {
+                    for (let i = 0; i < 256; i++) {
+                        state.palette[i] = window.tempNewTmpPalette[i];
+                    }
+                    state.paletteVersion++;
+                    window.tempNewTmpPalette = null; // Clean up
+                }
 
                 state.tmpData = {
                     header: {
@@ -1555,6 +1591,8 @@ window.addEventListener('keydown', (e) => {
 }, { capture: true, passive: false });
 
 // --- DRAG AND DROP HANDLERS ---
+let dragCounter = 0;
+
 function showsDrop() {
     const dz = elements.dropZoneOverlay;
     if (dz) {
@@ -1581,23 +1619,23 @@ function hidesDrop() {
 
 document.addEventListener('dragover', (e) => {
     e.preventDefault();
-    if (e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
-        showsDrop();
-    }
 });
 
 document.addEventListener('dragenter', (e) => {
     e.preventDefault();
     if (e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
+        dragCounter++;
         showsDrop();
     }
 });
 
 document.addEventListener('dragleave', (e) => {
     e.preventDefault();
-    // Only hide if we are truly leaving the body
-    if (e.target === document.documentElement || e.target === document.body || e.relatedTarget === null) {
-        hidesDrop();
+    if (e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
+        dragCounter--;
+        if (dragCounter <= 0) {
+            hidesDrop();
+        }
     }
 });
 
@@ -1614,7 +1652,7 @@ export async function processSystemFileOpen(file, handle = null) {
             }
         }
         
-        if (typeof loadTmpData === 'function') loadTmpData(tmpData);
+        if (typeof loadTmpData === 'function') loadTmpData(tmpData, handle ? handle.name : file.name);
         if (typeof updateCurrentTabName === 'function') updateCurrentTabName(handle ? handle.name : file.name);
         
         // Sync active state fileHandle from the new tab
@@ -1632,6 +1670,7 @@ export async function processSystemFileOpen(file, handle = null) {
 
 document.addEventListener('drop', async (e) => {
     e.preventDefault();
+    dragCounter = 0;
     hidesDrop();
     
     // Capture handles for "Direct Save" in Chrome/Edge if available

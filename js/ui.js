@@ -4075,10 +4075,16 @@ function _pasteFromImageBuffer(imgData, mode, isForced) {
                     }
                 }
             }
+            // Invalidate cache and recompute derived tile fields
+            t._v = (t._v || 0) + 1;
+            moveTileBy(idx, 0, 0, false);
         });
 
         recomputeWorldBoundsFromState();
         renderCanvas();
+        if (typeof _layerThumbCache !== 'undefined' && _layerThumbCache.clear) {
+            _layerThumbCache.clear();
+        }
         updateTilesList();
         return;
     }
@@ -4195,12 +4201,11 @@ function _pasteFromImageBuffer(imgData, mode, isForced) {
                 console.log(`[DEBUG SYS-PASTE] Target AFTER: t.tileHeader.cx_extra = ${t.tileHeader.cx_extra}, _extraZ_cx = ${t._extraZ_cx}, zData.length = ${t.extraZData ? t.extraZData.length : 0}, _extraImg_cx = ${t._extraImg_cx}, imgData.length = ${t.extraImageData ? t.extraImageData.length : 0}`);
                 console.log(`[DEBUG SYS-PASTE] ----------------------------------------`);
 
-                // Invalidate cache and recompute derived tile fields
-                t._v = (t._v || 0) + 1;
-                moveTileBy(idx, 0, 0, false);
-
                 console.log(`  [Paste:Extra] Layer '${isZMode ? 'Z' : 'Img'}' updated to ${w}x${h} from pasted image.`);
             }
+            // Invalidate cache and recompute derived tile fields
+            t._v = (t._v || 0) + 1;
+            moveTileBy(idx, 0, 0, false);
         });
     } else {
         // Create NEW tile
@@ -4264,6 +4269,9 @@ function _pasteFromImageBuffer(imgData, mode, isForced) {
     
     recomputeWorldBoundsFromState();
     renderCanvas();
+    if (typeof _layerThumbCache !== 'undefined' && _layerThumbCache.clear) {
+        _layerThumbCache.clear();
+    }
     updateTilesList();
 }
 

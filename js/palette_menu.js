@@ -2,6 +2,7 @@ import { setupSubmenusRecursive } from './ui.js';
 import { GAME_PALETTES } from './game_palettes.js';
 import { t } from './translations.js';
 import { pushHistory } from './history.js';
+import { state } from './state.js';
 
 
 // palette_menu.js — Palette Library & Palettes Menu Manager
@@ -146,11 +147,63 @@ function base64ToBuffer(b64) {
 }
 
 // ─────────────────────────────────────────────────────────────
+export function updatePaletteSelectorUI(menuItemSelectorId, node) {
+    const el = document.getElementById(menuItemSelectorId);
+    if (!el) return;
+    const btn = el.querySelector('.menu-btn');
+    if (!btn) return;
+    
+    // Find or create the icon container
+    let iconContainer = btn.querySelector('.menu-icon');
+    if (!iconContainer) {
+        iconContainer = document.createElement('span');
+        iconContainer.className = 'menu-icon';
+        btn.insertBefore(iconContainer, btn.firstChild);
+    }
+    
+    // Clear current icon
+    iconContainer.innerHTML = '';
+    
+    // Determine category
+    let category = null;
+    if (node) {
+        if (node.category) category = node.category;
+        else if (node.id) {
+            if (node.id.startsWith('game_ts_')) category = 'ts';
+            else if (node.id.startsWith('game_ra2_')) category = 'ra2';
+            else if (node.id.startsWith('game_yr_')) category = 'yr';
+            else if (node.id.startsWith('game_cncreloaded_')) category = 'cncreloaded';
+        }
+    }
+    
+    if (category) {
+        const svg = _createGameIconSvg(category, 14);
+        if (svg) {
+            iconContainer.appendChild(svg);
+        } else {
+            iconContainer.innerText = '🎨';
+        }
+    } else {
+        iconContainer.innerText = '🎨';
+    }
+
+    // Also update name span if present
+    const nameSpan = btn.querySelector('span[data-i18n="menu_palette"]') || btn.querySelector('span[data-i18n="btn_select_palette"]') || btn.querySelector('span:not(.menu-icon):not(.arrow)');
+    if (nameSpan && node) {
+        nameSpan.innerText = node.name;
+        // Remove translation attribute to prevent translation system from overwriting
+        nameSpan.removeAttribute('data-i18n');
+    }
+}
+
 // APPLY PALETTE  (shared by menu items AND manager dialog)
 // ─────────────────────────────────────────────────────────────
-export function applyPaletteFromEntry(entry) {
+export function applyPaletteFromEntry(entry, isManual = true) {
     // entry: treeNode with b64 data
     try {
+        if (isManual) {
+            state.paletteSelectedManually = true;
+        }
         pushHistory();
         const buffer = base64ToBuffer(entry.b64);
         parsePaletteData(buffer);   // from main app (ui.js / main.js)
@@ -165,7 +218,10 @@ export function applyPaletteFromEntry(entry) {
 
         state.paletteVersion++; // Signal UI to refresh thumbnails
         _appliedPaletteId = entry.id;
+        recordUsage(entry);
         refreshPalettesMenuDynamic();
+        
+        updatePaletteSelectorUI('menuItemPalettes', entry);
     } catch (e) {
         alert(t('msg_err_apply_pal').replace('{{error}}', e.message));
     }
@@ -180,7 +236,7 @@ function recordUsage(libEntry) {
     lib.usageCount[libEntry.id] = (lib.usageCount[libEntry.id] || 0) + 1;
     // Update lastUsed: remove existing entry if present, then prepend
     lib.lastUsed = lib.lastUsed.filter(e => e.id !== libEntry.id);
-    lib.lastUsed.unshift({ id: libEntry.id, name: libEntry.name, path: libEntry.path });
+    lib.lastUsed.unshift({ id: libEntry.id, name: libEntry.name, path: libEntry.path || [] });
     if (lib.lastUsed.length > 8) lib.lastUsed.length = 8;
     saveLibrary();
     // Refresh UI
@@ -1153,8 +1209,10 @@ function refreshAllPaletteMenus() {
             const info = document.getElementById('newTmpPalInfo');
             if (info) info.innerText = `Selected: ${node.name}`;
 
+            updatePaletteSelectorUI('menuItemNewPalettes', node);
+
             // Enable Create Button
-            const btnCreate = document.getElementById('btnNewTmpCreate');
+            const btnCreate = document.getElementById('btnCreateNewTmp');
             if (btnCreate) {
                 btnCreate.disabled = false;
                 btnCreate.removeAttribute('disabled');
@@ -1172,15 +1230,17 @@ function refreshAllPaletteMenus() {
 
             // Call syncImporterPalette if it exists (import_shp.js)
             if (typeof syncImporterPalette === 'function') {
-                syncImporterPalette(palArray);
+                syncImporterPalette(palArray, true);
             } else {
                 // Fallback for bundle
-                if (window.syncImporterPalette) window.syncImporterPalette(palArray);
+                if (window.syncImporterPalette) window.syncImporterPalette(palArray, true);
             }
 
             if (typeof renderPaletteSimple === 'function') {
                 renderPaletteSimple(palArray, document.getElementById('impTmpPalGrid'));
             }
+
+            updatePaletteSelectorUI('menuItemImpPalettes', node);
 
             console.log("Selected import palette:", node.name);
             const btnOpen = document.getElementById('btnConfirmImpTmp');
@@ -1193,6 +1253,7 @@ function refreshAllPaletteMenus() {
         if (typeof window.syncExternalPalette === 'function') {
             window.syncExternalPalette(node);
         }
+        updatePaletteSelectorUI('menuItemExtPalettes', node);
     });
 }
 
@@ -1497,9 +1558,6 @@ export function setupPaletteMenu() {
     // Initial render
     refreshAllPaletteMenus();
 
-    // Start with the most recently used palette if available
-    const lastId = getMostRecentPaletteId();
-    if (lastId) applyPaletteById(lastId);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1511,16 +1569,17 @@ export function getActivePaletteId() {
     return _appliedPaletteId;
 }
 
-export function applyPaletteById(id) {
+export function applyPaletteById(id, isManual = true) {
     if (!id) return false;
     const lib = getLib();
     const node = findNodeById(lib.custom, id);
     if (node && node.b64) {
-        applyPaletteFromEntry(node);
+        applyPaletteFromEntry(node, isManual);
         return true;
     }
     return false;
 }
+window.applyPaletteById = applyPaletteById;
 
 export function getMostRecentPaletteId() {
     const lib = getLib();

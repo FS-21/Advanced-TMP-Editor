@@ -10,11 +10,12 @@ import {
 } from './ui.js';
 import { pushHistory } from './history.js';
 import { updateCurrentTabName } from './tabs.js';
+import { applyPaletteById } from './palette_menu.js';
 
 /**
  * Initializes the application state with loaded TMP data
  */
-export function loadTmpData(tmp) {
+export function loadTmpData(tmp, filename = '') {
     console.time("TMP Initialization");
     
     state.tmpData = tmp;
@@ -24,6 +25,41 @@ export function loadTmpData(tmp) {
     state.cy = tmp.header.cy;
     state.gameType = (state.cx === 48) ? 'ts' : 'ra2';
     
+    // Autoselect palette if not manually selected by the user
+    if (!state.paletteSelectedManually && filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        let autoPaletteId = null;
+
+        if (state.cx === 48) {
+            if (ext === 'sno') {
+                autoPaletteId = 'game_ts_isosno';
+            } else {
+                autoPaletteId = 'game_ts_isotem';
+            }
+        } else if (state.cx === 60) {
+            if (ext === 'sno') {
+                autoPaletteId = 'game_ra2_isosno';
+            } else if (ext === 'tem') {
+                autoPaletteId = 'game_ra2_isotem';
+            } else if (ext === 'urb') {
+                autoPaletteId = 'game_ra2_isourb';
+            } else if (ext === 'des') {
+                autoPaletteId = 'game_yr_isodes';
+            } else if (ext === 'ubn') {
+                autoPaletteId = 'game_yr_isoubn';
+            } else if (ext === 'lun') {
+                autoPaletteId = 'game_yr_isolun';
+            } else {
+                autoPaletteId = 'game_ra2_isotem';
+            }
+        }
+
+        if (autoPaletteId) {
+            applyPaletteById(autoPaletteId, false);
+        }
+    }
+    
+
     // Calculate World Bounds
     state.worldBounds = TmpTsFile.computeBounds(tmp);
     
@@ -148,10 +184,14 @@ export function parsePaletteBuffer(buffer) {
     if (buffer.byteLength === 768) {
         const view = new Uint8Array(buffer);
         for (let i = 0; i < 256; i++) {
-            const r = view[i * 3] * 4;     // 6-bit to 8-bit scaling
-            const g = view[i * 3 + 1] * 4;
-            const b = view[i * 3 + 2] * 4;
-            palette[i] = { r, g, b };
+            const r6 = view[i * 3];
+            const g6 = view[i * 3 + 1];
+            const b6 = view[i * 3 + 2];
+            palette[i] = {
+                r: (r6 << 2) | (r6 >> 4),
+                g: (g6 << 2) | (g6 >> 4),
+                b: (b6 << 2) | (b6 >> 4)
+            };
         }
         return palette;
     }
@@ -381,13 +421,13 @@ async function handleExportTmpAction(blob) {
             const handle = await window.showSaveFilePicker({
                 suggestedName: state.tmpData.filename || 'output.tmp',
                 types: [
-                    { description: 'Temperate (TEM)', accept: { 'application/x-wwn-tmp': ['.tem'] } },
-                    { description: 'Snow (SNO)', accept: { 'application/x-wwn-tmp': ['.sno'] } },
-                    { description: 'Urban (URB)', accept: { 'application/x-wwn-tmp': ['.urb'] } },
-                    { description: 'Desert (DES)', accept: { 'application/x-wwn-tmp': ['.des'] } },
-                    { description: 'Lunar (LUN)', accept: { 'application/x-wwn-tmp': ['.lun'] } },
-                    { description: 'New Urban (UBN)', accept: { 'application/x-wwn-tmp': ['.ubn'] } },
-                    { description: 'All Westwood TMPs', accept: { 'application/x-wwn-tmp': ['.tem', '.sno', '.urb', '.des', '.lun', '.ubn'] } }
+                    { description: 'Temperate (TEM)', accept: { 'application/x-wwn-tmp-tem': ['.tem'] } },
+                    { description: 'Snow (SNO)', accept: { 'application/x-wwn-tmp-sno': ['.sno'] } },
+                    { description: 'Urban (URB)', accept: { 'application/x-wwn-tmp-urb': ['.urb'] } },
+                    { description: 'Desert (DES)', accept: { 'application/x-wwn-tmp-des': ['.des'] } },
+                    { description: 'Lunar (LUN)', accept: { 'application/x-wwn-tmp-lun': ['.lun'] } },
+                    { description: 'New Urban (UBN)', accept: { 'application/x-wwn-tmp-ubn': ['.ubn'] } },
+                    { description: 'All Westwood TMPs', accept: { 'application/x-wwn-tmp-all': ['.tem', '.sno', '.urb', '.des', '.lun', '.ubn'] } }
                 ]
             });
             const writable = await handle.createWritable();
