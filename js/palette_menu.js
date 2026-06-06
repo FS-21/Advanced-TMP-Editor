@@ -221,7 +221,7 @@ export function applyPaletteFromEntry(entry, isManual = true) {
         recordUsage(entry);
         refreshPalettesMenuDynamic();
         
-        updatePaletteSelectorUI('menuItemPalettes', entry);
+        // updatePaletteSelectorUI('menuItemPalettes', entry); // Keep main menu bar 'Palette' trigger clean (no icons/labels)
     } catch (e) {
         alert(t('msg_err_apply_pal').replace('{{error}}', e.message));
     }
