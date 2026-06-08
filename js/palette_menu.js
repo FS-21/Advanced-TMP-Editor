@@ -1324,7 +1324,8 @@ function refreshDialogPaletteMenu(dropdownId, onSelect) {
         { id: 'YR', name: 'Yuri\'s Revenge', subId: 'palYrSubmenu_dlg_' + dropdownId, nodes: GAME_PALETTES.yr }
     ];
 
-    if (window.CnCReloadedMode || (GAME_PALETTES.cncreloaded && GAME_PALETTES.cncreloaded.length > 0)) {
+    const showCnCReloaded = (typeof CnCReloadedMode !== 'undefined' ? CnCReloadedMode : (typeof window.CnCReloadedMode !== 'undefined' ? window.CnCReloadedMode : true));
+    if (showCnCReloaded && GAME_PALETTES.cncreloaded && GAME_PALETTES.cncreloaded.length > 0) {
         games.push({ id: 'CnCReloaded', name: 'C&C Reloaded', subId: 'palCnCReloadedSubmenu_dlg_' + dropdownId, nodes: GAME_PALETTES.cncreloaded });
     }
 

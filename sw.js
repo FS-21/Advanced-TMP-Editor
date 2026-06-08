@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tmp-editor-20260606_113720';
+const CACHE_NAME = 'tmp-editor-20260608_075931';
 const ASSETS = [
     './',
     './advanced_tmp_editor.html',
