@@ -310,10 +310,18 @@ function renderTabs() {
             ctxMenu.style.left = `${e.clientX}px`;
             ctxMenu.style.top = `${e.clientY}px`;
             ctxMenu.classList.add('active');
-            
+
             // Enable/disable reopen
             const reopenItem = document.getElementById('ctxReopenTab');
             reopenItem.classList.toggle('disabled', !lastClosedTab);
+        };
+        tabEl.onauxclick = (e) => {
+            // Middle mouse button (auxclick with button === 1) closes the tab,
+            // mirroring the behavior of the "X" on the tab itself.
+            if (e.button === 1) {
+                e.preventDefault();
+                closeTab(index, e);
+            }
         };
         tabEl.querySelector('.tab-close').onclick = (e) => closeTab(index, e);
         

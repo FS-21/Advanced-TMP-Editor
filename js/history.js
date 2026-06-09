@@ -133,12 +133,6 @@ export function pushHistory(modifiedFrameIndices = null, isInitial = false) {
     }
 
     // Increment version for ALL frames being cloned to ensure thumbnails definitely refresh
-    if (framesToClone.size > 0) {
-        console.log(`[History] Pushing to history. Cloning frames: ${Array.from(framesToClone).join(', ')}`);
-    } else {
-        console.log(`[History] Pushing to history. Structural change or selection only (no pixel cloning).`);
-    }
-
     framesToClone.forEach(idx => {
         if (state.tiles[idx]) {
             state.tiles[idx]._v = (state.tiles[idx]._v || 0) + 1;
@@ -331,6 +325,9 @@ export function pushHistory(modifiedFrameIndices = null, isInitial = false) {
         console.warn(`History limit reduced to ${historyLimit} entries due to large project size (${state.tiles.length} frames, ${state.canvasW}x${state.canvasH})`);
     }
 
+    // Selection-only history points ([]) should never mark the document as
+    // modified. They are used to record navigation/selection changes so the
+    // user can undo a "where am I looking" jump, but they are NOT edits.
     if (state.history.length > historyLimit) {
         state.history.shift();
     } else {
@@ -339,8 +336,10 @@ export function pushHistory(modifiedFrameIndices = null, isInitial = false) {
 
     // Update "hasChanges" and Tab visual state
     const wasChanged = state.hasChanges;
-    state.hasChanges = (state.historyPtr !== state.savedHistoryPtr);
-    
+    if (!isSelectionOnly) {
+        state.hasChanges = (state.historyPtr !== state.savedHistoryPtr);
+    }
+
     if (wasChanged !== state.hasChanges) {
         if (window.renderTabs) window.renderTabs();
     }
@@ -351,7 +350,6 @@ export function pushHistory(modifiedFrameIndices = null, isInitial = false) {
 
 
 export function undo() {
-    console.log("DEBUG: Undo triggered, ptr:", state.historyPtr);
     if (state.historyPtr > 0) {
         state.historyPtr--;
         restoreHistory(state.history[state.historyPtr]);
@@ -365,7 +363,6 @@ export function undo() {
 }
 
 export function redo() {
-    console.log("DEBUG: Redo triggered, ptr:", state.historyPtr, "of", state.history.length);
     if (state.historyPtr < state.history.length - 1) {
         state.historyPtr++;
         restoreHistory(state.history[state.historyPtr]);
@@ -509,6 +506,5 @@ export function restoreHistory(snapshot) {
         if (hook_updateUIState) hook_updateUIState(state.tiles.length > 0);
     } finally {
         state._isRestoringHistory = false;
-        console.log("[History] Restore complete. UI refreshed.");
     }
 }

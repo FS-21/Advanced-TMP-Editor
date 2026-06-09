@@ -982,7 +982,15 @@ async function openRecentFile(handle, paletteId, openInNewTab = false) {
         const buf = await file.arrayBuffer();
 
         if (openInNewTab) {
-            createNewTab();
+            // If there is a single empty tab, ignore the new-tab request and
+            // reuse it, so we don't leave an orphan empty tab behind.
+            const isSingleEmptyTab = state.tabs.length === 1 &&
+                state.tabs[0] &&
+                !state.tabs[0].tmpData &&
+                !state.tabs[0].isNewProject;
+            if (!isSingleEmptyTab) {
+                createNewTab();
+            }
         }
 
         const ext = file.name.split('.').pop().toLowerCase();
@@ -1071,7 +1079,7 @@ async function doRenderRecentFilesMenu() {
         const palName = getPaletteName(item.paletteId) || t('lbl_default');
         const dateStr = new Date(item.timestamp).toLocaleString();
 
-        div.title = `${t('lbl_file')}: ${item.name}\n${t('lbl_date')}: ${dateStr}\n${t('lbl_palette')}: ${palName}`;
+        div.title = `${t('lbl_file')}: ${item.name}\n${t('lbl_date')}: ${dateStr}\n${t('lbl_palette')}: ${palName}\n\n${t('lbl_middle_click_hint') || 'Middle-click: open in new tab'}`;
 
         const gameSuffix = item.game ? ` (${item.game})` : '';
         div.innerHTML = `
@@ -1085,6 +1093,15 @@ async function doRenderRecentFilesMenu() {
             e.stopPropagation();
             const inNewTab = e.ctrlKey || e.shiftKey || e.metaKey;
             openRecentFile(item.handle, item.paletteId, inNewTab);
+        };
+        // Middle mouse button -> open the file in a new tab instead of the
+        // current tab. Mirrors the behavior of browsers' "open in new tab".
+        div.onauxclick = (e) => {
+            if (e.button === 1) {
+                e.preventDefault();
+                e.stopPropagation();
+                openRecentFile(item.handle, item.paletteId, true);
+            }
         };
         submenu.appendChild(div);
     }
