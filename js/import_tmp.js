@@ -6,9 +6,14 @@ import { t } from './translations.js';
 import { GAME_PALETTES } from './game_palettes.js';
 import { parsePaletteBuffer } from './file_io.js';
 import { renderPaletteSimple } from './ui.js';
-import { updatePaletteSelectorUI } from './palette_menu.js';
+import { updatePaletteSelectorUI, getActivePaletteName, getActivePaletteId, getLib, findNodeById } from './palette_menu.js';
 
 let importPaletteSelectedManually = false;
+let _lastImpPaletteNodeId = null;
+
+export function setLastImpPaletteNodeId(id) {
+    _lastImpPaletteNodeId = id;
+}
 
 let impTmpPalette = new Array(256).fill(null);
 let impTmpData = null; // { header, tiles, numTiles }
@@ -151,7 +156,7 @@ export function initImportTmp(onConfirm) {
     };
 
     elements.btnConfirmImpTmp.onclick = () => {
-        if (onConfirm) onConfirm(impTmpData, impTmpPalette);
+        if (onConfirm) onConfirm(impTmpData, impTmpPalette, importPaletteSelectedManually, _lastImpPaletteNodeId);
         
         stopAnimation();
         elements.importTmpDialog.close();
@@ -174,22 +179,32 @@ export function syncImporterPalette(palette, isManual = false) {
 export function resetImportState() {
     console.log("[Import] Resetting importer state...");
     importPaletteSelectedManually = false;
+    _lastImpPaletteNodeId = null;
     impTmpData = null;
     window.curImportTmpData = null;
     impTmpFrameIdx = 0;
     stopAnimation();
 
-    // Restore default text and icon for import dropdown button
+    // Update button text/icon: restore active palette if one is loaded
     const el = document.getElementById('menuItemImpPalettes');
     if (el) {
-        const btn = el.querySelector('.menu-btn');
-        if (btn) {
-            let iconContainer = btn.querySelector('.menu-icon');
-            if (iconContainer) iconContainer.innerText = '🎨';
-            const nameSpan = btn.querySelector('span:not(.menu-icon):not(.arrow)');
-            if (nameSpan) {
-                nameSpan.innerText = t('btn_select_palette') || 'SELECT PALETTE';
-                nameSpan.setAttribute('data-i18n', 'btn_select_palette');
+        const activeId = getActivePaletteId();
+        if (activeId) {
+            const lib = getLib();
+            const node = findNodeById(lib.custom, activeId);
+            if (node) {
+                updatePaletteSelectorUI('menuItemImpPalettes', node);
+            }
+        } else {
+            const btn = el.querySelector('.menu-btn');
+            if (btn) {
+                let iconContainer = btn.querySelector('.menu-icon');
+                if (iconContainer) iconContainer.innerText = '🎨';
+                const nameSpan = btn.querySelector('span:not(.menu-icon):not(.arrow)');
+                if (nameSpan) {
+                    nameSpan.innerText = t('btn_select_palette') || 'SELECT PALETTE';
+                    nameSpan.setAttribute('data-i18n', 'btn_select_palette');
+                }
             }
         }
     }
@@ -410,6 +425,13 @@ function autoDetectImportPalette(cx, filename) {
             }
         }
         if (node && node.b64) {
+            const activeName = getActivePaletteName();
+            if (activeName) {
+                const norm = (s) => s.replace(/\.pal$/i, '').toLowerCase().trim();
+                if (norm(activeName) === norm(node.name)) {
+                    return;
+                }
+            }
             try {
                 // Decode base64
                 const bin = atob(node.b64);
@@ -419,7 +441,8 @@ function autoDetectImportPalette(cx, filename) {
                 
                 const palArray = parsePaletteBuffer(buffer);
                 syncImporterPalette(palArray, false);
-                
+                _lastImpPaletteNodeId = node.id;
+
                 // Update UI text and icon using the shared helper
                 updatePaletteSelectorUI('menuItemImpPalettes', node);
                 

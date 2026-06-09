@@ -30,10 +30,11 @@ import {
 } from './ui.js';
 import { redo, undo, pushHistory } from './history.js';
 import { initLanguageSelector } from './translations.js';
-import { initImportTmp, initExportTmp, loadTmpData } from './file_io.js';
+import { initImportTmp, initExportTmp, loadTmpData, parsePaletteBuffer } from './file_io.js';
 import { setupColorShiftUIListeners } from './tools.js';
 import { initTabs, updateCurrentTabName, createNewTab, closeTab } from './tabs.js';
 import { TmpTsFile } from './tmp_format.js';
+import { getActivePaletteId, getLib, findNodeById, updatePaletteSelectorUI, base64ToBuffer, setActivePaletteId } from './palette_menu.js';
 
 // Toggle UI visibility based on whether project is loaded
 function updateUIState() {
@@ -1236,7 +1237,7 @@ function parseColorRef(str) {
 }
 
 
-function handleConfirmImport(impTmpData, impTmpPalette) {
+function handleConfirmImport(impTmpData, impTmpPalette, paletteSelectedManually, paletteNodeId) {
     if (!impTmpData) return;
 
     // 1. Sync Palette
@@ -1246,8 +1247,17 @@ function handleConfirmImport(impTmpData, impTmpPalette) {
         renderPalette();
     }
 
+    if (paletteSelectedManually) {
+        state.paletteSelectedManually = true;
+    }
+
+    // Track palette ID so it survives dialog reopens
+    if (paletteNodeId) {
+        setActivePaletteId(paletteNodeId);
+    }
+
     // 2. Use Native Loader
-    loadTmpData(impTmpData, impTmpData.filename || '');
+    loadTmpData(impTmpData, impTmpData.filename || '', true);
 
     // 2.5 Update Tab Name
     if (impTmpData.filename) {
@@ -1278,29 +1288,67 @@ async function openNewTmpDialog() {
         if (!confirmed) return;
     }
 
-    // Reset temporary palette selection
-    window.tempNewTmpPalette = null;
-    const btnCreate = document.getElementById('btnCreateNewTmp');
-    if (btnCreate) {
-        btnCreate.disabled = true;
-        btnCreate.setAttribute('disabled', 'true');
-    }
-    const info = document.getElementById('newTmpPalInfo');
-    if (info) info.innerText = (t('btn_select_palette') || 'SELECT PALETTE') + '...';
-    const previewGrid = document.getElementById('newTmpPalPreview');
-    if (previewGrid) previewGrid.innerHTML = '';
+    // Pre-select active palette if one is loaded; otherwise reset to default
+    const activeId = getActivePaletteId();
+    if (activeId) {
+        const lib = getLib();
+        const node = findNodeById(lib.custom, activeId);
+        if (node && node.b64) {
+            const buf = base64ToBuffer(node.b64);
+            const palArray = parsePaletteBuffer(buf);
+            window.tempNewTmpPalette = palArray;
+            window._tempNewTmpPaletteId = activeId;
 
-    // Restore default text and icon for new project dropdown button
-    const el = document.getElementById('menuItemNewPalettes');
-    if (el) {
-        const btn = el.querySelector('.menu-btn');
-        if (btn) {
-            let iconContainer = btn.querySelector('.menu-icon');
-            if (iconContainer) iconContainer.innerText = '🎨';
-            const nameSpan = btn.querySelector('span:not(.menu-icon):not(.arrow)');
-            if (nameSpan) {
-                nameSpan.innerText = t('btn_select_palette') || 'SELECT PALETTE';
-                nameSpan.setAttribute('data-i18n', 'btn_select_palette');
+            updatePaletteSelectorUI('menuItemNewPalettes', node);
+
+            const info = document.getElementById('newTmpPalInfo');
+            if (info) info.innerText = `Selected: ${node.name}`;
+
+            if (typeof renderPaletteSimple === 'function') {
+                renderPaletteSimple(palArray, document.getElementById('newTmpPalPreview'));
+            }
+
+            const btnCreate = document.getElementById('btnCreateNewTmp');
+            if (btnCreate) {
+                btnCreate.disabled = false;
+                btnCreate.removeAttribute('disabled');
+                btnCreate.style.opacity = '1';
+                btnCreate.style.cursor = 'pointer';
+                btnCreate.style.pointerEvents = 'auto';
+            }
+        }
+    } else {
+        // No active palette — reset to default
+        window.tempNewTmpPalette = null;
+        window._tempNewTmpPaletteId = null;
+        const btnCreate = document.getElementById('btnCreateNewTmp');
+        if (btnCreate) {
+            btnCreate.disabled = true;
+            btnCreate.setAttribute('disabled', 'true');
+        }
+        const info = document.getElementById('newTmpPalInfo');
+        if (info) info.innerText = (t('btn_select_palette') || 'SELECT PALETTE') + '...';
+        const previewGrid = document.getElementById('newTmpPalPreview');
+        if (previewGrid) {
+            previewGrid.innerHTML = '';
+            for (let i = 0; i < 256; i++) {
+                const d = document.createElement('div');
+                d.className = 'pal-cell ' + (i % 2 === 0 ? 'empty-p1' : 'empty-p2');
+                previewGrid.appendChild(d);
+            }
+        }
+
+        const el = document.getElementById('menuItemNewPalettes');
+        if (el) {
+            const btn = el.querySelector('.menu-btn');
+            if (btn) {
+                let iconContainer = btn.querySelector('.menu-icon');
+                if (iconContainer) iconContainer.innerText = '🎨';
+                const nameSpan = btn.querySelector('span:not(.menu-icon):not(.arrow)');
+                if (nameSpan) {
+                    nameSpan.innerText = t('btn_select_palette') || 'SELECT PALETTE';
+                    nameSpan.setAttribute('data-i18n', 'btn_select_palette');
+                }
             }
         }
     }
@@ -1377,6 +1425,10 @@ function initNewTmpDialog() {
                     }
                     state.paletteVersion++;
                     window.tempNewTmpPalette = null; // Clean up
+                }
+                if (window._tempNewTmpPaletteId) {
+                    setActivePaletteId(window._tempNewTmpPaletteId);
+                    window._tempNewTmpPaletteId = null;
                 }
 
                 state.tmpData = {

@@ -15,7 +15,7 @@ import { applyPaletteById } from './palette_menu.js';
 /**
  * Initializes the application state with loaded TMP data
  */
-export function loadTmpData(tmp, filename = '') {
+export function loadTmpData(tmp, filename = '', skipPaletteAutoselect = false) {
     console.time("TMP Initialization");
     
     state.tmpData = tmp;
@@ -26,7 +26,7 @@ export function loadTmpData(tmp, filename = '') {
     state.gameType = (state.cx === 48) ? 'ts' : 'ra2';
     
     // Autoselect palette if not manually selected by the user
-    if (!state.paletteSelectedManually && filename) {
+    if (!state.paletteSelectedManually && filename && !skipPaletteAutoselect) {
         const ext = filename.split('.').pop().toLowerCase();
         let autoPaletteId = null;
 

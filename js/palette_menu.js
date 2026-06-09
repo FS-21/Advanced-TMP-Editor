@@ -139,7 +139,7 @@ function bufferToBase64(buffer) {
     return btoa(bin);
 }
 
-function base64ToBuffer(b64) {
+export function base64ToBuffer(b64) {
     const bin = atob(b64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -161,9 +161,10 @@ export function updatePaletteSelectorUI(menuItemSelectorId, node) {
         btn.insertBefore(iconContainer, btn.firstChild);
     }
     
-    // Clear current icon
+    // Clear current icon and category class
     iconContainer.innerHTML = '';
-    
+    iconContainer.className = 'menu-icon';
+
     // Determine category
     let category = null;
     if (node) {
@@ -175,10 +176,11 @@ export function updatePaletteSelectorUI(menuItemSelectorId, node) {
             else if (node.id.startsWith('game_cncreloaded_')) category = 'cncreloaded';
         }
     }
-    
+
     if (category) {
         const svg = _createGameIconSvg(category, 14);
         if (svg) {
+            iconContainer.className = 'menu-icon pm-icon-' + category;
             iconContainer.appendChild(svg);
         } else {
             iconContainer.innerText = '🎨';
@@ -387,11 +389,11 @@ function buildMenuPaletteItem(entry, node, showGameIcon, onSelect = null) {
             // Record usage and mark as applied
             const path = buildPath(lib.custom, node.id) || [node.name];
             recordUsage({ id: node.id, name: node.name, path });
-            _appliedPaletteId = node.id;
 
             if (onSelect) {
                 onSelect(node);
             } else {
+                _appliedPaletteId = node.id;
                 applyPaletteFromEntry(node);
             }
 
@@ -434,6 +436,19 @@ function createPaletteStrip(node) {
 
 function refreshPalettesMenuDynamic() {
     const lib = getLib();
+    const dropdownId = 'palettesMenuDropdown';
+    const dropdown = document.getElementById(dropdownId);
+
+    // Ensure search filter exists below Manage button, above palettes
+    if (dropdown && !dropdown.querySelector('.pal-menu-search')) {
+        const searchFilter = _createPaletteSearchFilter(dropdownId);
+        const pinnedSection = document.getElementById('palMenuPinnedSection');
+        if (pinnedSection) {
+            dropdown.insertBefore(searchFilter, pinnedSection);
+        } else {
+            dropdown.insertBefore(searchFilter, dropdown.firstChild);
+        }
+    }
 
     // Pinned Favorites
     const pinnedSection = document.getElementById('palMenuPinnedSection');
@@ -522,6 +537,9 @@ function refreshPalettesMenuDynamic() {
     // Attach hover logic to all potentially new submenus
     const palMenu = document.getElementById('menuItemPalettes');
     if (palMenu) attachSubmenuHoverLogic(palMenu);
+
+    // Apply any active filter after building
+    setTimeout(() => _applyPaletteMenuFilter(dropdownId), 0);
 }
 
 function renderGameSubmenu(containerId, palettes) {
@@ -590,6 +608,9 @@ let _mgrExpandState = {};      // { folderId: true/false }
 let _mgrOnSelectCallback = null; // Callback for double-click selection
 
 let _appliedPaletteId = null;  // Track currently applied palette
+
+const _palMenuFilters = new Map(); // dropdownId -> searchText
+let _palMenuFilterTimer = null;
 
 function showPrompt(title, message, defaultValue = "") {
     return new Promise((resolve) => {
@@ -1201,6 +1222,7 @@ function refreshAllPaletteMenus() {
 
             // Set global for main.js to pick up
             window.tempNewTmpPalette = palArray;
+            window._tempNewTmpPaletteId = node.id;
 
             if (typeof renderPaletteSimple === 'function') {
                 renderPaletteSimple(palArray, document.getElementById('newTmpPalPreview'));
@@ -1242,6 +1264,8 @@ function refreshAllPaletteMenus() {
 
             updatePaletteSelectorUI('menuItemImpPalettes', node);
 
+            if (typeof setLastImpPaletteNodeId === 'function') setLastImpPaletteNodeId(node.id);
+
             console.log("Selected import palette:", node.name);
             const btnOpen = document.getElementById('btnConfirmImpTmp');
             if (btnOpen && window.curImportTmpData) btnOpen.disabled = false;
@@ -1257,10 +1281,110 @@ function refreshAllPaletteMenus() {
     });
 }
 
+function _createPaletteSearchFilter(dropdownId) {
+    const searchText = _palMenuFilters.get(dropdownId) || '';
+    const container = document.createElement('div');
+    container.className = 'pal-menu-search';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'pal-menu-search-input';
+    input.placeholder = t('pal_search_placeholder') || 'Filter palettes...';
+    input.value = searchText;
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'pal-menu-search-clear' + (searchText ? '' : ' hidden');
+    clearBtn.innerHTML = '&#10005;';
+    clearBtn.title = 'Clear filter';
+
+    input.addEventListener('input', () => {
+        const val = input.value;
+        _palMenuFilters.set(dropdownId, val);
+        clearBtn.classList.toggle('hidden', !val);
+
+        clearTimeout(_palMenuFilterTimer);
+        _palMenuFilterTimer = setTimeout(() => {
+            _applyPaletteMenuFilter(dropdownId);
+        }, 150);
+    });
+
+    clearBtn.addEventListener('click', () => {
+        input.value = '';
+        _palMenuFilters.set(dropdownId, '');
+        clearBtn.classList.add('hidden');
+        _applyPaletteMenuFilter(dropdownId);
+        input.focus();
+    });
+
+    container.addEventListener('click', (e) => e.stopPropagation());
+
+    container.appendChild(input);
+    container.appendChild(clearBtn);
+    return container;
+}
+
+function _applyPaletteMenuFilter(dropdownId) {
+    const dropdown = document.getElementById(dropdownId);
+    if (!dropdown) return;
+
+    const searchText = (_palMenuFilters.get(dropdownId) || '').toLowerCase().trim();
+
+    const items = dropdown.querySelectorAll('.pal-menu-item');
+    items.forEach(item => {
+        const title = (item.getAttribute('data-title') || '').toLowerCase();
+        item.classList.toggle('filter-hidden', searchText && !title.includes(searchText));
+    });
+
+    _cleanupEmptySections(dropdown);
+}
+
+function _cleanupEmptySections(container) {
+    const children = Array.from(container.children);
+    let i = 0;
+    while (i < children.length) {
+        const el = children[i];
+        if (el.classList.contains('pal-menu-section-label') || el.classList.contains('menu-divider')) {
+            let j = i + 1;
+            let allHidden = true;
+            let hasItems = false;
+            while (j < children.length) {
+                const next = children[j];
+                if (next.classList.contains('pal-menu-section-label') ||
+                    next.classList.contains('menu-divider') ||
+                    next.classList.contains('menu-item-submenu')) {
+                    break;
+                }
+                if (next.classList.contains('pal-menu-item')) {
+                    hasItems = true;
+                    if (!next.classList.contains('filter-hidden')) {
+                        allHidden = false;
+                    }
+                }
+                j++;
+            }
+            el.style.display = (hasItems && allHidden) ? 'none' : '';
+        }
+        i++;
+    }
+
+    const submenus = container.querySelectorAll('.menu-item-submenu');
+    submenus.forEach(sub => {
+        const palItems = sub.querySelectorAll('.pal-menu-item');
+        if (palItems.length > 0) {
+            const allHidden = Array.from(palItems).every(item => item.classList.contains('filter-hidden'));
+            sub.style.display = allHidden ? 'none' : '';
+        }
+    });
+}
+
 function refreshDialogPaletteMenu(dropdownId, onSelect) {
     const dropdown = document.getElementById(dropdownId);
     if (!dropdown) return;
     dropdown.innerHTML = '';
+
+    // Search filter input
+    dropdown.appendChild(_createPaletteSearchFilter(dropdownId));
+
     const lib = getLib();
 
     // Set consistent min-width and ensure it's readable
@@ -1367,6 +1491,9 @@ function refreshDialogPaletteMenu(dropdownId, onSelect) {
         dropdown.classList.remove('active');
     };
     dropdown.appendChild(manage);
+
+    // Apply any active filter after building
+    setTimeout(() => _applyPaletteMenuFilter(dropdownId), 0);
 }
 
 // ── CLOSING UTILITIES ─────────────────────────────────────────
@@ -1568,6 +1695,17 @@ export function setupPaletteMenu() {
 
 export function getActivePaletteId() {
     return _appliedPaletteId;
+}
+
+export function setActivePaletteId(id) {
+    _appliedPaletteId = id;
+}
+
+export function getActivePaletteName() {
+    if (!_appliedPaletteId) return null;
+    const lib = getLib();
+    const node = findNodeById(lib.custom, _appliedPaletteId);
+    return node ? node.name : null;
 }
 
 export function applyPaletteById(id, isManual = true) {
