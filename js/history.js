@@ -508,3 +508,109 @@ export function restoreHistory(snapshot) {
         state._isRestoringHistory = false;
     }
 }
+
+/**
+ * Resets the undo/redo history to a single "fresh open" entry. Use this
+ * after loading a new file (Open, Open Recent, drag&drop, Import). It
+ * prevents the user from Ctrl+Z-ing the file away — the newly opened
+ * document is the only history entry, and it is marked as the saved state.
+ */
+export function resetHistoryForFreshOpen() {
+    if (hook_recomputeWorldBoundsFromState) hook_recomputeWorldBoundsFromState();
+
+    // Bump version on every live tile (matches the existing pushHistory path).
+    if (state.tiles) {
+        state.tiles.forEach(t => {
+            if (t) t._v = (t._v || 0) + 1;
+        });
+    }
+
+    // Build a deep-ish snapshot of the current tiles. We do NOT deep-clone
+    // the entire Uint8Array buffers here because the live state is what we
+    // want to remember; the entry becomes the baseline that undo cannot
+    // step past.
+    const framesSnapshot = state.tiles ? state.tiles.map(f => f ? {
+        id: f.id,
+        width: f.width,
+        height: f.height,
+        cx: f.cx,
+        cy: f.cy,
+        duration: f.duration,
+        lastSelectedIdx: f.lastSelectedIdx,
+        _v: f._v,
+        visible: f.visible !== undefined ? f.visible : true,
+        data: f.data ? new Uint8Array(f.data) : null,
+        layers: f.layers ? f.layers.map(l => cloneLayerNode(l)) : [],
+        tileHeader: f.tileHeader ? JSON.parse(JSON.stringify(f.tileHeader)) : null,
+        extraImageData: f.extraImageData ? new Uint8Array(f.extraImageData) : null,
+        zData: f.zData ? new Uint8Array(f.zData) : null,
+        extraZData: f.extraZData ? new Uint8Array(f.extraZData) : null,
+        damagedData: f.damagedData ? new Uint8Array(f.damagedData) : null,
+        itemMinX: f.itemMinX,
+        itemMinY: f.itemMinY,
+        diamondX: f.diamondX,
+        diamondY: f.diamondY,
+        extraX: f.extraX,
+        extraY: f.extraY,
+        _extraImg_cx: f._extraImg_cx,
+        _extraImg_cy: f._extraImg_cy,
+        _extraZ_cx: f._extraZ_cx,
+        _extraZ_cy: f._extraZ_cy
+    } : null) : [];
+
+    let selectionSnapshot = null;
+    if (state.selection) {
+        selectionSnapshot = { ...state.selection };
+        if (state.selection.maskData) {
+            selectionSnapshot.maskData = new Uint8Array(state.selection.maskData);
+        }
+    }
+
+    let floatingSnapshot = null;
+    if (state.floatingSelection) {
+        floatingSnapshot = { ...state.floatingSelection };
+        if (state.floatingSelection.data) {
+            floatingSnapshot.data = new Uint16Array(state.floatingSelection.data);
+        }
+        if (state.floatingSelection.maskData) {
+            floatingSnapshot.maskData = new Uint8Array(state.floatingSelection.maskData);
+        }
+        if (state.floatingSelection.originalData) {
+            floatingSnapshot.originalData = new Uint16Array(state.floatingSelection.originalData);
+        }
+        if (state.floatingSelection.originalMaskData) {
+            floatingSnapshot.originalMaskData = new Uint8Array(state.floatingSelection.originalMaskData);
+        }
+    }
+
+    state.history = [{
+        frames: framesSnapshot,
+        selection: selectionSnapshot,
+        floatingSelection: floatingSnapshot,
+        canvasW: state.canvasW,
+        canvasH: state.canvasH,
+        activeLayerId: state.activeLayerId,
+        currentTileIdx: state.currentTileIdx,
+        tileSelection: new Set(state.tileSelection),
+        subSelection: new Set(state.subSelection),
+        currentTileKey: state.currentTileKey,
+        cx: state.cx,
+        cy: state.cy,
+        gameType: state.gameType,
+        cblocks_x: state.cblocks_x,
+        // Global Project State
+        tmpData: state.tmpData,
+        tmpHeader: state.tmpHeader ? { ...state.tmpHeader } : null,
+        originalTiles: state.originalTiles ? state.originalTiles.map(t => t ? { ...t } : null) : null,
+        tmpFilename: state.tmpFilename,
+        tmpFullZPreviewActive: !!state.tmpFullZPreviewActive,
+        tmpGame: state.tmpGame
+    }];
+    state.historyPtr = 0;
+    state.savedHistoryPtr = 0;
+    state.hasChanges = false;
+
+    if (window.renderTabs) window.renderTabs();
+    renderHistory();
+    if (hook_updateUIState) hook_updateUIState((state.tiles || []).length > 0);
+}

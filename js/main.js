@@ -28,7 +28,7 @@ import {
     selectAllTiles, deselectAllTiles, invertTileSelection, selectTileAt, selectTilesInRect,
     copySelectedTiles, cutSelectedTiles, pasteTiles, pasteTilesAtEnd, deleteSelectedTiles, updateTileProperties, updateExtraBtnState, updateTileDataTable
 } from './ui.js';
-import { redo, undo, pushHistory } from './history.js';
+import { redo, undo, pushHistory, resetHistoryForFreshOpen } from './history.js';
 import { initLanguageSelector } from './translations.js';
 import { initImportTmp, initExportTmp, loadTmpData, parsePaletteBuffer } from './file_io.js';
 import { setupColorShiftUIListeners } from './tools.js';
@@ -1264,10 +1264,9 @@ function handleConfirmImport(impTmpData, impTmpPalette, paletteSelectedManually,
         updateCurrentTabName(impTmpData.filename);
     }
 
-    // 3. Update UI
-    pushHistory("all");
-    state.savedHistoryPtr = state.historyPtr; // Mark this state as saved
-    state.hasChanges = false;
+    // 3. Update UI — reset history so the freshly opened file is the only
+    // entry (Ctrl+Z will not erase the file).
+    resetHistoryForFreshOpen();
 
     // 4. Save to Recent Files (if FSAPI handle available)
     if (window._lastTmpFileHandle && impTmpData.filename) {
@@ -1486,11 +1485,7 @@ function initNewTmpDialog() {
                 }
 
                 // Initial history state for the whole grid
-                state.history = [];
-                state.historyPtr = -1;
-                pushHistory('all', true);
-                state.savedHistoryPtr = state.historyPtr; // Mark initial state as saved
-                state.hasChanges = false;
+                resetHistoryForFreshOpen();
 
                 updateCanvasSize();
                 updateTilesList();

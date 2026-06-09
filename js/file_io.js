@@ -8,7 +8,7 @@ import {
     renderOverlay, updateExtraBtnState, updateTileProperties,
     resetFramesList
 } from './ui.js';
-import { pushHistory } from './history.js';
+import { pushHistory, resetHistoryForFreshOpen } from './history.js';
 import { updateCurrentTabName } from './tabs.js';
 import { applyPaletteById } from './palette_menu.js';
 
@@ -150,10 +150,9 @@ export function loadTmpData(tmp, filename = '', skipPaletteAutoselect = false) {
     updateExtraBtnState();
     if (typeof window.updateUIState === 'function') window.updateUIState();
 
-    // Push initial snapshot so Ctrl+Z can always return to the loaded state
-    pushHistory('all', true);
-    state.savedHistoryPtr = state.historyPtr; // Mark this as the 'saved' point
-    state.hasChanges = false;
+    // Reset history so the freshly opened file is the only entry
+    // (Ctrl+Z will not erase the file).
+    resetHistoryForFreshOpen();
 
     if (elements.tilesList) elements.tilesList.focus();
     console.timeEnd("TMP Initialization");
