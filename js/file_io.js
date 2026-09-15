@@ -10,7 +10,7 @@ import {
 } from './ui.js';
 import { pushHistory, resetHistoryForFreshOpen } from './history.js';
 import { updateCurrentTabName } from './tabs.js';
-import { applyPaletteById } from './palette_menu.js';
+import { applyPaletteById, getActivePaletteId } from './palette_menu.js';
 
 /**
  * Initializes the application state with loaded TMP data
@@ -19,6 +19,9 @@ export function loadTmpData(tmp, filename = '', skipPaletteAutoselect = false) {
     console.time("TMP Initialization");
     
     state.tmpData = tmp;
+    if (filename) {
+        state.tmpData.filename = filename;
+    }
     state.cblocks_x = tmp.header.cblocks_x;
     state.cblocks_y = tmp.header.cblocks_y;
     state.cx = tmp.header.cx;
@@ -354,12 +357,43 @@ export async function handleSaveTmp() {
     }
 }
 
+export function getSuggestedTmpFilename() {
+    const curTab = (state.activeTabIndex >= 0 && state.tabs && state.tabs[state.activeTabIndex]) ? state.tabs[state.activeTabIndex] : null;
+    let name = (state.tmpData && state.tmpData.filename) || (curTab && !curTab.isNewProject && curTab.fileName) || '';
+    
+    // Remove any accidental or redundant '.tmp' extension from the name
+    if (name) {
+        name = name.replace(/\.tmp(?=\.|$)/ig, '');
+    }
+
+    // If it already ends in a valid Westwood theater extension, keep it
+    if (name && /\.(tem|sno|urb|des|lun|ubn)$/i.test(name)) {
+        return name;
+    }
+
+    // Determine the theater extension from active palette if possible
+    let ext = 'tem';
+    try {
+        const palId = (typeof getActivePaletteId === 'function') ? getActivePaletteId() : null;
+        if (palId) {
+            const lower = palId.toLowerCase();
+            if (lower.includes('sno')) ext = 'sno';
+            else if (lower.includes('ubn')) ext = 'ubn';
+            else if (lower.includes('urb')) ext = 'urb';
+            else if (lower.includes('des')) ext = 'des';
+            else if (lower.includes('lun')) ext = 'lun';
+            else if (lower.includes('tem')) ext = 'tem';
+        }
+    } catch (e) {}
+
+    const base = name || 'output';
+    return `${base}.${ext}`;
+}
+
 export function showExportDialog() {
     if (elements.exportTmpDialog) {
-        if (state.tmpData && state.tmpData.filename) {
-            const txt = elements.txtExpTmpName;
-            if (txt) txt.value = state.tmpData.filename;
-        }
+        const txt = elements.txtExpTmpName;
+        if (txt) txt.value = getSuggestedTmpFilename();
         elements.exportTmpDialog.showModal();
     }
 }
@@ -415,19 +449,30 @@ async function handleSaveTmpForceNew() {
 }
 
 async function handleExportTmpAction(blob) {
+    const suggestedName = getSuggestedTmpFilename();
+    const ext = '.' + suggestedName.split('.').pop().toLowerCase();
+
+    const allTypes = [
+        { description: 'Temperate (TEM)', accept: { 'application/x-wwn-tmp-tem': ['.tem'] } },
+        { description: 'Snow (SNO)', accept: { 'application/x-wwn-tmp-sno': ['.sno'] } },
+        { description: 'Urban (URB)', accept: { 'application/x-wwn-tmp-urb': ['.urb'] } },
+        { description: 'Desert (DES)', accept: { 'application/x-wwn-tmp-des': ['.des'] } },
+        { description: 'Lunar (LUN)', accept: { 'application/x-wwn-tmp-lun': ['.lun'] } },
+        { description: 'New Urban (UBN)', accept: { 'application/x-wwn-tmp-ubn': ['.ubn'] } },
+        { description: 'All Westwood TMPs', accept: { 'application/x-wwn-tmp-all': ['.tem', '.sno', '.urb', '.des', '.lun', '.ubn'] } }
+    ];
+    // Put the type matching the suggested extension at the top so it is selected by default
+    const matchedIdx = allTypes.findIndex(t => Object.values(t.accept).some(arr => arr.includes(ext)));
+    if (matchedIdx > 0) {
+        const [matched] = allTypes.splice(matchedIdx, 1);
+        allTypes.unshift(matched);
+    }
+
     if (window.showSaveFilePicker) {
         try {
             const handle = await window.showSaveFilePicker({
-                suggestedName: state.tmpData.filename || 'output.tmp',
-                types: [
-                    { description: 'Temperate (TEM)', accept: { 'application/x-wwn-tmp-tem': ['.tem'] } },
-                    { description: 'Snow (SNO)', accept: { 'application/x-wwn-tmp-sno': ['.sno'] } },
-                    { description: 'Urban (URB)', accept: { 'application/x-wwn-tmp-urb': ['.urb'] } },
-                    { description: 'Desert (DES)', accept: { 'application/x-wwn-tmp-des': ['.des'] } },
-                    { description: 'Lunar (LUN)', accept: { 'application/x-wwn-tmp-lun': ['.lun'] } },
-                    { description: 'New Urban (UBN)', accept: { 'application/x-wwn-tmp-ubn': ['.ubn'] } },
-                    { description: 'All Westwood TMPs', accept: { 'application/x-wwn-tmp-all': ['.tem', '.sno', '.urb', '.des', '.lun', '.ubn'] } }
-                ]
+                suggestedName: suggestedName,
+                types: allTypes
             });
             const writable = await handle.createWritable();
             await writable.write(blob);
@@ -438,6 +483,12 @@ async function handleExportTmpAction(blob) {
             
             state.tmpData.filename = handle.name;
             updateCurrentTabName(handle.name);
+            const curTab = (state.activeTabIndex >= 0 && state.tabs && state.tabs[state.activeTabIndex]) ? state.tabs[state.activeTabIndex] : null;
+            if (curTab) {
+                curTab.isNewProject = false;
+                curTab.fileHandle = handle;
+                curTab.fileName = handle.name;
+            }
         } catch (err) {
             if (err.name !== 'AbortError') throw err;
         }
@@ -445,7 +496,7 @@ async function handleExportTmpAction(blob) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = state.tmpData.filename || 'output.tmp';
+        a.download = suggestedName;
         a.click();
         URL.revokeObjectURL(url);
     }
