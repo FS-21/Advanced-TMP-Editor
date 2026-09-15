@@ -1,6 +1,8 @@
 import os
 import re
 import sys
+import shutil
+import subprocess
 from datetime import datetime
 
 # Configuration
@@ -209,7 +211,7 @@ def bundle():
     print("Scanning for unfinished tasks (TODO/FIXME)...")
     todo_found = False
     for root, _, files in os.walk(COMPONENT_DIR):
-        if any(d in root for d in ('.git', '.gemini', '__pycache__')): continue
+        if any(d in root for d in ('.git', '.gemini', '__pycache__', 'Build', 'src-tauri')): continue
         for f in files:
             if not f.endswith(('.html', '.js', '.css', '.py')): continue
             # Don't scan this script itself for its own keywords
@@ -218,7 +220,7 @@ def bundle():
             p = os.path.join(root, f)
             with open(p, 'r', encoding='utf-8', errors='ignore') as src:
                 for line_no, content in enumerate(src, 1):
-                    if 'TODO' in content or 'FIXME' in content:
+                    if re.search(r'(?://|/\*|#|<!--)\s*(?:TODO|FIXME)\b', content):
                         print(f"  [INFO] Task found in {os.path.relpath(p, COMPONENT_DIR)} (L{line_no}): {content.strip()}")
                         todo_found = True
     if not todo_found:
@@ -504,7 +506,87 @@ self.addEventListener('fetch', (event) => {{
         f.write(sw_content)
     print(f"Global Service Worker updated at {sw_file}")
 
-import subprocess
+def build_desktop():
+    """Compiles the Tauri native desktop executable and copies it into Build/"""
+    tauri_dir = os.path.join(COMPONENT_DIR, 'src-tauri')
+    if not os.path.exists(tauri_dir):
+        return
+
+    import shutil
+
+    # Locate cargo
+    cargo_bin = shutil.which('cargo')
+    user_cargo = os.path.expanduser('~/.cargo/bin/cargo.exe' if sys.platform == 'win32' else '~/.cargo/bin/cargo')
+    if not cargo_bin and os.path.exists(user_cargo):
+        cargo_bin = user_cargo
+
+    env = os.environ.copy()
+    cargo_dir = os.path.expanduser('~/.cargo/bin')
+    if os.path.exists(cargo_dir) and cargo_dir not in env.get('PATH', ''):
+        env['PATH'] = cargo_dir + os.pathsep + env.get('PATH', '')
+
+    # Test if cargo is runnable
+    if not cargo_bin:
+        print("\n" + "-" * 60)
+        print("  [INFO] Rust/Cargo compiler was not detected on this system.")
+        print("  If you wish to build the native desktop executable (.exe / Desktop):")
+        print("    -> Download and install Rust from: https://rustup.rs/")
+        print("  Skipping desktop build. Continuing with Standalone HTML and PWA...")
+        print("-" * 60)
+        return
+
+    try:
+        check = subprocess.run([cargo_bin, '--version'], capture_output=True, env=env, text=True)
+        if check.returncode != 0:
+            print("\n" + "-" * 60)
+            print("  [INFO] Rust/Cargo compiler is not responding or unavailable.")
+            print("  To build the desktop .exe, install Rust from: https://rustup.rs/")
+            print("  Skipping desktop build. Continuing with Standalone HTML and PWA...")
+            print("-" * 60)
+            return
+    except Exception:
+        print("\n" + "-" * 60)
+        print("  [INFO] Rust/Cargo compiler not found.")
+        print("  To build the desktop .exe, install Rust from: https://rustup.rs/")
+        print("  Skipping desktop build. Continuing with Standalone HTML and PWA...")
+        print("-" * 60)
+        return
+
+    print("\n" + "=" * 60)
+    print(f"  Building Desktop Executable (Tauri v2 Release via {cargo_bin})...")
+    print("=" * 60)
+
+    try:
+        main_rs = os.path.join(tauri_dir, 'src', 'main.rs')
+        if os.path.exists(main_rs):
+            os.utime(main_rs, None)
+        cmd = [cargo_bin, 'build', '--release']
+        res = subprocess.run(cmd, cwd=tauri_dir, env=env)
+        if res.returncode != 0:
+            print("\n[WARNING] Desktop build exited with errors. Continuing with Web/PWA bundles.")
+            return
+
+        # Target binary paths
+        exe_names = ['advanced-tmp-editor.exe', 'Advanced-TMP-Editor.exe', 'advanced-tmp-editor', 'Advanced-TMP-Editor']
+        target_dir = os.path.join(tauri_dir, 'target', 'release')
+        found_bin = None
+        for name in exe_names:
+            p = os.path.join(target_dir, name)
+            if os.path.exists(p):
+                found_bin = p
+                break
+
+        if found_bin:
+            dest_name = 'Advanced-TMP-Editor.exe' if sys.platform == 'win32' else 'advanced-tmp-editor'
+            dest_path = os.path.join(COMPONENT_DIR, 'Build', dest_name)
+            import shutil
+            shutil.copy2(found_bin, dest_path)
+            size_mb = os.path.getsize(dest_path) / (1024 * 1024)
+            print(f"[SUCCESS] Desktop executable ready at:\n  {dest_path} ({size_mb:.2f} MB)")
+        else:
+            print("[WARNING] Built binary not found in src-tauri/target/release/")
+    except Exception as e:
+        print(f"[WARNING] Could not build desktop executable: {e}")
 
 if __name__ == '__main__':
     bundle()
@@ -540,4 +622,8 @@ if __name__ == '__main__':
             sys.exit(1)
         else:
             print("[SUCCESS] Translations are consistent across all languages.")
+
+    # Build Native Desktop Executable
+    if '--no-desktop' not in sys.argv:
+        build_desktop()
 

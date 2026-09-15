@@ -3502,14 +3502,25 @@ export function cutSelectedTiles() {
 }
 
 /**
- * Shows the dark red notification bar with a message
+ * Shows the notification bar with a message
  */
-export function showPasteNotification(msg) {
+export function showPasteNotification(msg, type = 'error', duration = 0) {
     const el = document.getElementById('pasteNotification');
     const msgEl = document.getElementById('pasteNotificationMsg');
     if (el && msgEl) {
-        msgEl.textContent = msg;
-        el.classList.add('active');
+        let cleanMsg = msg;
+        cleanMsg = cleanMsg.replace(/^[✅🔒⚠️❌📦ℹ️]\s*/u, '');
+        msgEl.textContent = cleanMsg;
+        el.className = 'notification-bar active';
+        if (type === 'warning') el.classList.add('warning');
+        if (type === 'success') el.classList.add('success');
+        if (type === 'info') el.classList.add('info');
+
+        if (duration > 0) {
+            setTimeout(() => {
+                el.classList.remove('active');
+            }, duration);
+        }
     }
 }
 
@@ -5603,7 +5614,7 @@ export function addTile(w, h, data) {
         zData: TmpTsFile.decodeTileDiamond(TmpTsFile.generateDefaultZData(w, h), w, h),
         tileHeader: {
             x: 0, y: 0, height: 0, land_type: 0, ramp_type: 0, flags: 2,
-            has_extra_data: false, has_z_data: true, has_damaged_data: false,
+            has_extra_data: false, has_z_data: true, is_randomized: false, has_damaged_data: false,
             radar_red_left: 128, radar_green_left: 128, radar_blue_left: 128,
             radar_red_right: 128, radar_green_right: 128, radar_blue_right: 128
         },
@@ -7333,7 +7344,7 @@ export function updateTileProperties() {
             </div>
             <div style="display: flex; gap: 4px; padding: 4px 0; flex-direction: row; justify-content: space-between; align-items: center;" data-title="${t('tt_prop_damaged')}">
                 <label style="font-size: 11px; color: #ffffff; text-transform: uppercase; cursor: pointer; font-weight: 700;" for="propDamaged">${t('lbl_has_damaged_artwork')}</label>
-                <input type="checkbox" id="propDamaged" ${header.has_damaged_data ? 'checked' : ''} style="cursor: pointer; width: auto; margin: 0;">
+                <input type="checkbox" id="propDamaged" ${(header.is_randomized || header.has_damaged_data) ? 'checked' : ''} style="cursor: pointer; width: auto; margin: 0;">
             </div>
             ${radarSection}
             ${extraSection}
@@ -7492,9 +7503,13 @@ export function updateTileProperties() {
         if (state.tileSelection.size > 1) {
             for (const sIdx of state.tileSelection) {
                 const t = state.tiles[sIdx];
-                if (t && t.tileHeader) t.tileHeader.has_damaged_data = val;
+                if (t && t.tileHeader) {
+                    t.tileHeader.is_randomized = val;
+                    t.tileHeader.has_damaged_data = val;
+                }
             }
         } else {
+            header.is_randomized = val;
             header.has_damaged_data = val;
         }
         updateTileDataTable();

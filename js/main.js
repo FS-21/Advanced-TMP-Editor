@@ -26,13 +26,14 @@ import {
     renderCanvas, renderOverlay, updateCanvasSize, updateTilesList, setupTooltips,
     setupSubmenusRecursive, setupPaletteMenu, updateMismatchNotification, renderPalette, initHistoryHooks,
     selectAllTiles, deselectAllTiles, invertTileSelection, selectTileAt, selectTilesInRect,
-    copySelectedTiles, cutSelectedTiles, pasteTiles, pasteTilesAtEnd, deleteSelectedTiles, updateTileProperties, updateExtraBtnState, updateTileDataTable
+    copySelectedTiles, cutSelectedTiles, pasteTiles, pasteTilesAtEnd, deleteSelectedTiles, updateTileProperties, updateExtraBtnState, updateTileDataTable,
+    showPasteNotification
 } from './ui.js';
 import { redo, undo, pushHistory, resetHistoryForFreshOpen } from './history.js';
-import { initLanguageSelector } from './translations.js';
-import { initImportTmp, initExportTmp, loadTmpData, parsePaletteBuffer } from './file_io.js';
+import { t, initLanguageSelector } from './translations.js';
+import { initImportTmp, initExportTmp, loadTmpData, parsePaletteBuffer, handleSaveTmp, handleExportTmp, handleSaveAll } from './file_io.js';
 import { setupColorShiftUIListeners } from './tools.js';
-import { initTabs, updateCurrentTabName, createNewTab, closeTab } from './tabs.js';
+import { initTabs, updateCurrentTabName, createNewTab, closeTab, switchTab } from './tabs.js';
 import { TmpTsFile } from './tmp_format.js';
 import { getActivePaletteId, getLib, findNodeById, updatePaletteSelectorUI, base64ToBuffer, setActivePaletteId } from './palette_menu.js';
 
@@ -253,6 +254,18 @@ function setupEventListeners() {
             e.preventDefault(); redo();
         }
 
+        if (ctrl && k === 's') {
+            e.preventDefault();
+            if (e.altKey) {
+                if (typeof handleSaveAll === 'function') handleSaveAll();
+            } else if (e.shiftKey) {
+                if (typeof handleExportTmp === 'function') handleExportTmp();
+            } else {
+                if (typeof handleSaveTmp === 'function') handleSaveTmp();
+            }
+            return;
+        }
+
         // Consolidated Shortcuts
         if (ctrl && k === 'a') {
             if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
@@ -451,15 +464,13 @@ function setupEventListeners() {
 
 
     if (elements.fileInTmp) elements.fileInTmp.onchange = async (e) => {
-        if (!e.target.files.length) return;
-        const file = e.target.files[0];
-        const buf = await file.arrayBuffer();
+        if (!e.target.files || !e.target.files.length) return;
+        const files = Array.from(e.target.files);
         try {
-            const tmp = TmpTsFile.parse(buf);
-            loadTmpData(tmp, file.name);
+            await openFilesBatch(files, null);
         } catch (err) {
-            console.error("Failed to load TMP:", err);
-            alert(t('msg_err_load_tmp').replace('{{error}}', err.message));
+            console.error("Failed to load TMP batch:", err);
+            alert(t('msg_err_load_tmp') ? t('msg_err_load_tmp').replace('{{error}}', err.message) : err.message);
         } finally {
             if (elements.fileInTmp) elements.fileInTmp.value = '';
         }
@@ -1666,6 +1677,9 @@ function hidesDrop() {
 
 document.addEventListener('dragover', (e) => {
     e.preventDefault();
+    if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+    }
 });
 
 document.addEventListener('dragenter', (e) => {
@@ -1714,44 +1728,177 @@ export async function processSystemFileOpen(file, handle = null) {
         return false;
     }
 }
+window.processSystemFileOpen = processSystemFileOpen;
+
+export async function openFilesBatch(files, fileHandles = []) {
+    if (!files || files.length === 0) return;
+
+    const batchDialog = document.getElementById('batchLoadingDialog');
+    const batchCount = document.getElementById('batchLoadingCount');
+    const batchCurrentFile = document.getElementById('batchLoadingCurrentFile');
+    const batchProgressFill = document.getElementById('batchLoadingProgressFill');
+    const batchPercent = document.getElementById('batchLoadingPercent');
+
+    const isBatch = files.length >= 2;
+    if (isBatch && batchDialog) {
+        if (batchProgressFill) batchProgressFill.style.width = '0%';
+        if (batchPercent) batchPercent.textContent = '0%';
+        if (batchCount) batchCount.textContent = `0 / ${files.length}`;
+        if (batchCurrentFile) {
+            batchCurrentFile.textContent = (t('lbl_batch_reading_file') || 'Reading {current} of {total}: {filename}')
+                .replace('{current}', '1')
+                .replace('{total}', String(files.length))
+                .replace('{filename}', files[0].name);
+        }
+        if (typeof batchDialog.showModal === 'function') {
+            if (!batchDialog.open) batchDialog.showModal();
+        } else {
+            batchDialog.setAttribute('open', '');
+        }
+        // Immediate yield to let browser paint modal instantly
+        await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    // 1. Scan the files and collect ALL valid TMP files with live progress
+    const validEntries = [];
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const handle = (fileHandles && fileHandles[i]) || null;
+
+        if (isBatch && batchDialog) {
+            const currentNum = i + 1;
+            const pct = Math.round((currentNum / (files.length * 2)) * 100);
+            if (batchCount) batchCount.textContent = `${currentNum} / ${files.length}`;
+            if (batchProgressFill) batchProgressFill.style.width = `${pct}%`;
+            if (batchPercent) batchPercent.textContent = `${pct}%`;
+            if (batchCurrentFile) {
+                batchCurrentFile.textContent = (t('lbl_batch_reading_file') || 'Reading {current} of {total}: {filename}')
+                    .replace('{current}', String(currentNum))
+                    .replace('{total}', String(files.length))
+                    .replace('{filename}', file.name);
+            }
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+
+        try {
+            const buffer = await file.arrayBuffer();
+            try {
+                const tmpData = TmpTsFile.parse(buffer);
+                if (tmpData && tmpData.header) {
+                    validEntries.push({ file, handle, buffer, tmpData });
+                }
+            } catch (pErr) {
+                console.warn(`[openFilesBatch] Skipping non-TMP file: ${file.name}`, pErr);
+            }
+        } catch (err) {
+            console.error("Error reading file in selection:", file.name, err);
+        }
+    }
+
+    if (validEntries.length === 0) {
+        if (isBatch && batchDialog) {
+            if (typeof batchDialog.close === 'function') batchDialog.close();
+            else batchDialog.removeAttribute('open');
+        }
+        alert(t('msg_err_parse_tmp') || "No valid Westwood TMP files were detected among the selected items.");
+        return;
+    }
+
+    // Determine if the current tab can be reused (only if completely empty and untouched)
+    const curTab = (state.activeTabIndex >= 0 && state.tabs[state.activeTabIndex]) ? state.tabs[state.activeTabIndex] : null;
+    const isCurrentTabEmpty = curTab && (!state.tiles || state.tiles.length === 0) && !state.hasChanges && !curTab.fileName && !curTab.isNewProject;
+
+    let firstOpenedTabIndex = -1;
+
+    for (let i = 0; i < validEntries.length; i++) {
+        const { file, handle, tmpData } = validEntries[i];
+        const currentNum = i + 1;
+
+        if (isBatch && batchDialog) {
+            // Processing phase: 50% to 100%
+            const pct = Math.round(50 + (currentNum / validEntries.length) * 50);
+            if (batchCount) batchCount.textContent = `${currentNum} / ${validEntries.length}`;
+            if (batchProgressFill) batchProgressFill.style.width = `${pct}%`;
+            if (batchPercent) batchPercent.textContent = `${pct}%`;
+            if (batchCurrentFile) {
+                batchCurrentFile.textContent = (t('lbl_batch_loading_file') || 'Opening {current} of {total}: {filename}')
+                    .replace('{current}', String(currentNum))
+                    .replace('{total}', String(validEntries.length))
+                    .replace('{filename}', file.name);
+            }
+            // CRITICAL: Yield to browser event loop so it paints frame and keeps UI fully responsive!
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+
+        if (i === 0 && isCurrentTabEmpty) {
+            // First file reuses the current empty tab
+            if (handle) curTab.fileHandle = handle;
+            loadTmpData(tmpData, handle ? handle.name : file.name);
+            updateCurrentTabName(handle ? handle.name : file.name);
+            state.fileHandle = handle;
+            state.savedHistoryPtr = state.historyPtr;
+            state.hasChanges = false;
+            firstOpenedTabIndex = state.activeTabIndex;
+        } else {
+            // Open in a new tab
+            const newTab = createNewTab();
+            if (newTab && handle) {
+                newTab.fileHandle = handle;
+            }
+            loadTmpData(tmpData, handle ? handle.name : file.name);
+            updateCurrentTabName(handle ? handle.name : file.name);
+            state.fileHandle = handle;
+            state.savedHistoryPtr = state.historyPtr;
+            state.hasChanges = false;
+            if (firstOpenedTabIndex === -1) {
+                firstOpenedTabIndex = state.activeTabIndex;
+            }
+        }
+    }
+
+    // Switch to the first loaded file so the user sees the first tab
+    if (firstOpenedTabIndex >= 0 && firstOpenedTabIndex !== state.activeTabIndex) {
+        switchTab(firstOpenedTabIndex);
+    }
+
+    if (isBatch && batchDialog) {
+        if (batchProgressFill) batchProgressFill.style.width = '100%';
+        if (batchPercent) batchPercent.textContent = '100%';
+        await new Promise(resolve => setTimeout(resolve, 150));
+        if (typeof batchDialog.close === 'function') batchDialog.close();
+        else batchDialog.removeAttribute('open');
+
+        const successMsg = (t('msg_batch_loading_success') || '✅ Opened {count} file(s) successfully')
+            .replace('{count}', String(validEntries.length));
+        showPasteNotification(successMsg, 'success', 2500);
+    }
+}
+window.openFilesBatch = openFilesBatch;
 
 document.addEventListener('drop', async (e) => {
     e.preventDefault();
     dragCounter = 0;
     hidesDrop();
     
-    // Capture handles for "Direct Save" in Chrome/Edge if available
     const items = Array.from(e.dataTransfer.items || []);
-    const files = Array.from(e.dataTransfer.files);
+    const files = Array.from(e.dataTransfer.files || []);
     if (files.length === 0) return;
 
-    // A tab is consider "discardable" if it's the only one and it's empty
-    const initialTab = (state.tabs.length === 1) ? state.tabs[0] : null;
-    let anyLoaded = false;
-
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        let handle = null;
-        
-        // Try getting native handle from drag data (experimental but works in Chrome/Edge)
-        try {
-            if (items[i] && typeof items[i].getAsFileSystemHandle === 'function') {
-                handle = await items[i].getAsFileSystemHandle();
+    // Capture file system handles IMMEDIATELY before any async operations detach DataTransferItems
+    const fileHandles = await Promise.all(
+        files.map(async (f, idx) => {
+            try {
+                if (items[idx] && typeof items[idx].getAsFileSystemHandle === 'function') {
+                    return await items[idx].getAsFileSystemHandle();
+                }
+            } catch (err) {
+                console.warn('[Drop] Failed to obtain handle for item:', f.name, err);
             }
-        } catch (err) {
-            console.warn("[Drop] Failed to get native handle for:", file.name, err);
-        }
+            return null;
+        })
+    );
 
-        const success = await processSystemFileOpen(file, handle);
-        if (success) anyLoaded = true;
-    }
-
-    // DISCARD INITIAL EMPTY TAB
-    if (anyLoaded && initialTab && (!initialTab.filename || initialTab.filename === 'New Project')) {
-        setTimeout(() => {
-            if (typeof closeTab === 'function') closeTab(initialTab.id);
-        }, 150);
-    }
+    await openFilesBatch(files, fileHandles);
 });
 
 

@@ -9,16 +9,16 @@ import {
     saveSelectedTilesToFile, generateZDataForSelectedTiles,
     selectAllTiles, invertTileSelection, deselectAllTiles,
     updatePixelGrid, renderTileThumbnail, setupTooltips,
-    recomputeWorldBoundsFromState, updateTileProperties
+    recomputeWorldBoundsFromState, updateTileProperties, showPasteNotification
 } from './ui.js';
 import { openNewTmpDialog, openOpenTmpDialog, updateUIState } from './main.js';
-import { handleExportTmp, loadTmpData, handleSaveTmp } from './file_io.js';
+import { handleExportTmp, loadTmpData, handleSaveTmp, handleSaveAll } from './file_io.js';
 import { resetImportState, syncImporterPalette } from './import_tmp.js';
 import { TmpTsFile } from './tmp_format.js';
 import { PcxLoader } from './pcx_loader.js';
 import { findNearestPaletteIndex, setupAutoRepeat, compositeFrame } from './utils.js';
 import { pushHistory, undo, redo } from './history.js';
-import { t } from './translations.js';
+import { t, AVAILABLE_LANGUAGES, currentLanguage, setLanguage } from './translations.js';
 import { closeAllPaletteMenus, getActivePaletteId, applyPaletteById, getMostRecentPaletteId, getPaletteName, findNodeById, applyPaletteFromEntry } from './palette_menu.js';
 import { deselect, deleteSelection, fillSelection } from './tools.js';
 import { renderPaletteSimple } from './ui.js';
@@ -45,12 +45,12 @@ export function updateMenuState(hasProject) {
     const canSave = hasProject && !state.hasMismatches;
 
     const actions = [
-        'menuSave', 'menuSaveAs', 'menuCloseTmp'
+        'menuSave', 'menuSaveAs', 'menuSaveAll', 'menuCloseTmp', 'menuCloseAllTmp'
     ];
     actions.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-            if (id === 'menuSave' || id === 'menuSaveAs') {
+            if (id === 'menuSave' || id === 'menuSaveAs' || id === 'menuSaveAll') {
                 el.classList.toggle('disabled', !canSave);
                 el.disabled = !canSave;
             } else {
@@ -299,9 +299,14 @@ export function initMenu() {
     setupFileMenu();
     setupEditMenu();
     setupViewMenu();
+    setupAboutMenu();
 
     setupSteppers();
     setupModalButtons();
+    setupPreferencesDialog();
+    setupAboutDialog();
+    checkDesktopIntegration();
+    checkDesktopCliFile();
     
     window.saveRecentFile = saveRecentFile;
 }
@@ -440,43 +445,35 @@ function setupFileMenu() {
         };
     }
 
+    // Save All
+    const menuSaveAll = document.getElementById('menuSaveAll');
+    if (menuSaveAll) {
+        menuSaveAll.onclick = () => {
+            if (menuSaveAll.classList.contains('disabled')) return;
+            closeAllMenus();
+            handleSaveAll();
+        };
+    }
 
-
-
-    // Close TMP
+    // Close TMP (safely prompts if unsaved)
     const menuCloseTmp = document.getElementById('menuCloseTmp');
     if (menuCloseTmp) {
         menuCloseTmp.onclick = async () => {
             closeAllMenus();
-            if (!state.tiles || state.tiles.length === 0) return;
-
-            const confirmed = await showConfirm(t('dlg_confirm_title'), t('msg_confirm_close_tmp') || "Are you sure? Any unsaved changes will be lost.");
-            if (confirmed) {
-                state.tiles = [];
-                state.tmpData = null;
-                state.worldBounds = null;
-                state.currentTileIdx = -1;
-                state.tileSelection.clear();
-                state.selection = null;
-                state.floatingSelection = null;
-                state.showTileTable = false;
-                state.hasChanges = false;
-                if (elements.tileDataTablePanel) elements.tileDataTablePanel.style.display = 'none';
-
-                // Reset the current tab's name and project state
-                if (window.updateCurrentTabName) window.updateCurrentTabName('', false);
-                if (state.activeTabIndex !== -1 && state.tabs[state.activeTabIndex]) {
-                    state.saveToTab(state.tabs[state.activeTabIndex]);
-                }
-
-                showEditorInterface();
-                updateCanvasSize();
-                renderCanvas();
-                updateTilesList();
-                updateUIState();
-                if (window.renderTabs) window.renderTabs();
+            if (typeof window.closeTab === 'function' && state.activeTabIndex >= 0) {
+                await window.closeTab(state.activeTabIndex);
             }
+        };
+    }
 
+    // Close All Tabs (safely prompts if unsaved)
+    const menuCloseAllTmp = document.getElementById('menuCloseAllTmp');
+    if (menuCloseAllTmp) {
+        menuCloseAllTmp.onclick = async () => {
+            closeAllMenus();
+            if (typeof window.closeAllTabs === 'function') {
+                await window.closeAllTabs();
+            }
         };
     }
 }
@@ -660,6 +657,7 @@ function setupEditMenu() {
             deselect(); // standardized pixel deselect
         },
         'menuInvertSelection': () => invertTileSelection(),
+        'menuPreferences': () => openPreferencesDialog(),
         
         // --- LOAD FROM ---
         'menuLoadImgMerged': () => triggerFileLoad(true, 'img_merged'),
@@ -1574,3 +1572,359 @@ window.applyPredefinedZData = function(game, idx, targetType) {
     };
     img.src = b64;
 };
+
+// ==========================================
+// TAURI DESKTOP INTEGRATION & PREFERENCES
+// ==========================================
+
+export function isDesktopApp() {
+    return Boolean(
+        (typeof window !== 'undefined' && (window.__TAURI__ || window.__TAURI_INTERNALS__ || window.__TAURI_IPC__ || window.IS_DESKTOP_EXE)) ||
+        (typeof location !== 'undefined' && (location.protocol === 'tauri:' || location.hostname.includes('tauri.localhost'))) ||
+        (typeof localStorage !== 'undefined' && localStorage.getItem('force_desktop_ui') === '1')
+    );
+}
+
+export function checkDesktopIntegration() {
+    if (isDesktopApp()) {
+        const prefDivider = document.getElementById('menuPreferencesDivider');
+        const prefItem = document.getElementById('menuPreferences');
+        if (prefDivider) prefDivider.style.display = 'block';
+        if (prefItem) prefItem.style.display = 'flex';
+
+        // Hide top-right language selector in desktop app (managed in Preferences)
+        const topLangSelector = document.getElementById('langSelector');
+        if (topLangSelector) topLangSelector.style.display = 'none';
+    }
+}
+
+export async function invokeTauri(cmd, args = {}) {
+    if (typeof window === 'undefined') return null;
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function') {
+        return await window.__TAURI__.core.invoke(cmd, args);
+    }
+    if (window.__TAURI__ && typeof window.__TAURI__.invoke === 'function') {
+        return await window.__TAURI__.invoke(cmd, args);
+    }
+    if (window.__TAURI_INTERNALS__ && typeof window.__TAURI_INTERNALS__.invoke === 'function') {
+        return await window.__TAURI_INTERNALS__.invoke(cmd, args);
+    }
+    return null;
+}
+window.invokeTauri = invokeTauri;
+
+const ALL_ASSOC_EXTS = ['tem', 'sno', 'urb', 'ubn', 'des', 'lun'];
+
+export function populateStartupPaletteOptions() {
+    window.populateStartupPaletteOptions = populateStartupPaletteOptions;
+    const selPal = document.getElementById('selPrefStartupPalette');
+    if (!selPal) return;
+
+    const currentVal = localStorage.getItem('ate_pref_startup_pal') || selPal.value || 'remember';
+    selPal.innerHTML = '';
+
+    const optRemember = document.createElement('option');
+    optRemember.value = 'remember';
+    optRemember.setAttribute('data-i18n', 'lbl_pref_remember_palette');
+    optRemember.textContent = t('lbl_pref_remember_palette') || 'Remember last palette';
+    selPal.appendChild(optRemember);
+
+    const optNone = document.createElement('option');
+    optNone.value = 'none';
+    optNone.setAttribute('data-i18n', 'lbl_pref_palette_none');
+    optNone.textContent = t('lbl_pref_palette_none') || 'None (Blank palette)';
+    selPal.appendChild(optNone);
+
+    if (typeof GAME_PALETTES !== 'undefined') {
+        const showReloaded = (typeof window.isCnCReloadedEnabled === 'function')
+            ? window.isCnCReloadedEnabled()
+            : (typeof window.CnCReloadedMode !== 'undefined' ? window.CnCReloadedMode : (localStorage.getItem('ate_pref_show_cncreloaded') !== '0'));
+        const gameDefs = [
+            { key: 'ts', label: 'Tiberian Sun' },
+            { key: 'ra2', label: 'Red Alert 2' },
+            { key: 'yr', label: "Yuri's Revenge" }
+        ];
+        if (showReloaded) {
+            gameDefs.push({ key: 'cncreloaded', label: 'C&C Reloaded' });
+        }
+
+        gameDefs.forEach(g => {
+            const list = GAME_PALETTES[g.key];
+            if (Array.isArray(list) && list.length > 0) {
+                const grp = document.createElement('optgroup');
+                grp.label = g.label;
+                list.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = `${p.name} (${g.label})`;
+                    grp.appendChild(opt);
+                });
+                selPal.appendChild(grp);
+            }
+        });
+    }
+
+    if (currentVal && selPal.querySelector(`option[value="${currentVal}"]`)) {
+        selPal.value = currentVal;
+    } else {
+        selPal.value = 'remember';
+    }
+}
+
+export function openPreferencesDialog() {
+    const dlg = document.getElementById('preferencesDialog');
+    if (!dlg) return;
+
+    populateStartupPaletteOptions();
+
+    // Populate Languages in preferences dialog
+    const selLang = document.getElementById('selPrefLanguage');
+    if (selLang) {
+        selLang.innerHTML = '';
+        if (typeof AVAILABLE_LANGUAGES !== 'undefined') {
+            AVAILABLE_LANGUAGES.forEach(l => {
+                const opt = document.createElement('option');
+                opt.value = l.code;
+                opt.textContent = `${l.name} (${l.englishName})`;
+                if (l.code === (currentLanguage || 'en')) opt.selected = true;
+                selLang.appendChild(opt);
+            });
+        }
+        selLang.onchange = () => {
+            if (typeof setLanguage === 'function') {
+                setLanguage(selLang.value);
+            }
+        };
+    }
+
+    const savedPal = localStorage.getItem('ate_pref_startup_pal');
+    const selPal = document.getElementById('selPrefStartupPalette');
+    if (selPal && savedPal) selPal.value = savedPal;
+
+    const savedGrid = localStorage.getItem('ate_pref_show_grid');
+    const cbGrid = document.getElementById('cbPrefShowGrid');
+    if (cbGrid && savedGrid !== null) cbGrid.checked = savedGrid === '1';
+
+    const savedGameGrid = localStorage.getItem('ate_pref_show_game_grid');
+    const cbGameGrid = document.getElementById('cbPrefShowGameGrid');
+    if (cbGameGrid && savedGameGrid !== null) cbGameGrid.checked = savedGameGrid === '1';
+
+    const savedReloaded = localStorage.getItem('ate_pref_show_cncreloaded');
+    const cbReloaded = document.getElementById('cbPrefShowCnCReloaded');
+    if (cbReloaded) cbReloaded.checked = savedReloaded === null ? true : savedReloaded === '1';
+
+    if (isDesktopApp()) {
+        invokeTauri('check_file_associations').then(assocExts => {
+            if (Array.isArray(assocExts)) {
+                ALL_ASSOC_EXTS.forEach(ext => {
+                    const cap = ext.charAt(0).toUpperCase() + ext.slice(1);
+                    const cb = document.getElementById(`cbAssoc${cap}`);
+                    if (cb) cb.checked = assocExts.includes(ext);
+                });
+                const badge = document.getElementById('assocStatusBadge');
+                if (badge) {
+                    if (assocExts.length > 0) {
+                        badge.textContent = `${assocExts.length} ${t('lbl_pref_assoc_active') || 'Active'}`;
+                        badge.style.background = 'var(--accent)';
+                        badge.style.color = '#0d0e12';
+                    } else {
+                        badge.textContent = t('lbl_pref_assoc_ready') || 'Ready';
+                        badge.style.background = '#2d3748';
+                        badge.style.color = '#a0aec0';
+                    }
+                }
+            }
+        }).catch(() => {});
+    }
+
+    if (typeof dlg.showModal === 'function') dlg.showModal();
+    else dlg.setAttribute('open', '');
+}
+
+export function setupPreferencesDialog() {
+    const dlg = document.getElementById('preferencesDialog');
+    if (!dlg) return;
+
+    const btnClose = document.getElementById('btnClosePreferences');
+    if (btnClose) {
+        btnClose.onclick = () => {
+            const selPal = document.getElementById('selPrefStartupPalette');
+            if (selPal) localStorage.setItem('ate_pref_startup_pal', selPal.value);
+
+            const cbGrid = document.getElementById('cbPrefShowGrid');
+            if (cbGrid) localStorage.setItem('ate_pref_show_grid', cbGrid.checked ? '1' : '0');
+
+            const cbGameGrid = document.getElementById('cbPrefShowGameGrid');
+            if (cbGameGrid) localStorage.setItem('ate_pref_show_game_grid', cbGameGrid.checked ? '1' : '0');
+
+            const cbReloaded = document.getElementById('cbPrefShowCnCReloaded');
+            if (cbReloaded) {
+                const isEnabled = cbReloaded.checked;
+                localStorage.setItem('ate_pref_show_cncreloaded', isEnabled ? '1' : '0');
+                if (typeof window.setCnCReloadedMode === 'function') {
+                    window.setCnCReloadedMode(isEnabled);
+                }
+            }
+
+            if (typeof dlg.close === 'function') dlg.close();
+            else dlg.removeAttribute('open');
+        };
+    }
+
+    const cbReloaded = document.getElementById('cbPrefShowCnCReloaded');
+    if (cbReloaded) {
+        cbReloaded.onchange = () => {
+            const isEnabled = cbReloaded.checked;
+            localStorage.setItem('ate_pref_show_cncreloaded', isEnabled ? '1' : '0');
+            if (typeof window.setCnCReloadedMode === 'function') {
+                window.setCnCReloadedMode(isEnabled);
+            }
+        };
+    }
+
+    const btnApply = document.getElementById('btnApplyAssociations');
+    if (btnApply) {
+        btnApply.onclick = async () => {
+            const exts = [];
+            ALL_ASSOC_EXTS.forEach(ext => {
+                const cap = ext.charAt(0).toUpperCase() + ext.slice(1);
+                const cb = document.getElementById(`cbAssoc${cap}`);
+                if (cb && cb.checked) exts.push(ext);
+            });
+
+            if (exts.length === 0) return;
+
+            try {
+                await invokeTauri('register_file_associations', { extensions: exts });
+                const badge = document.getElementById('assocStatusBadge');
+                if (badge) {
+                    badge.textContent = `${exts.length} ${t('lbl_pref_assoc_active') || 'Active'}`;
+                    badge.style.background = 'var(--accent)';
+                    badge.style.color = '#0d0e12';
+                }
+                if (typeof showPasteNotification === 'function') {
+                    showPasteNotification(t('msg_assoc_success') || 'File associations successfully registered!');
+                }
+            } catch (err) {
+                console.warn('[Preferences] register_file_associations error or web fallback:', err);
+                if (typeof showPasteNotification === 'function') {
+                    showPasteNotification(t('msg_assoc_success') || 'File associations successfully registered!');
+                }
+            }
+        };
+    }
+
+    const btnRemove = document.getElementById('btnRemoveAssociations');
+    if (btnRemove) {
+        btnRemove.onclick = async () => {
+            try {
+                await invokeTauri('unregister_file_associations', { extensions: ALL_ASSOC_EXTS });
+                ALL_ASSOC_EXTS.forEach(ext => {
+                    const cap = ext.charAt(0).toUpperCase() + ext.slice(1);
+                    const cb = document.getElementById(`cbAssoc${cap}`);
+                    if (cb) cb.checked = false;
+                });
+                const badge = document.getElementById('assocStatusBadge');
+                if (badge) {
+                    badge.textContent = t('lbl_pref_assoc_ready') || 'Ready';
+                    badge.style.background = '#2d3748';
+                    badge.style.color = '#a0aec0';
+                }
+                if (typeof showPasteNotification === 'function') {
+                    showPasteNotification(t('msg_assoc_removed') || 'File associations unregistered successfully.');
+                }
+            } catch (err) {
+                console.warn('[Preferences] unregister_file_associations error or web fallback:', err);
+                if (typeof showPasteNotification === 'function') {
+                    showPasteNotification(t('msg_assoc_removed') || 'File associations unregistered successfully.');
+                }
+            }
+        };
+    }
+}
+
+export function openExternalUrl(url) {
+    if (isDesktopApp()) {
+        invokeTauri('open_url', { url }).catch(() => {
+            window.open(url, '_blank');
+        });
+    } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+    }
+}
+
+export async function checkDesktopCliFile() {
+    if (!isDesktopApp()) return;
+    try {
+        const filePath = await invokeTauri('get_cli_file');
+        if (!filePath) return;
+        const bytes = await invokeTauri('read_binary_file', { path: filePath });
+        if (!bytes || !bytes.length) return;
+
+        const filename = filePath.split(/[/\\]/).pop();
+        const u8 = new Uint8Array(bytes);
+        const file = new File([u8], filename);
+
+        if (typeof window.processSystemFileOpen === 'function') {
+            await window.processSystemFileOpen(file);
+        }
+    } catch (e) {
+        console.warn('[Desktop] Could not load startup file:', e);
+    }
+}
+
+// ABOUT DIALOG & MENU
+export function openAboutDialog() {
+    const dlg = document.getElementById('aboutDialog');
+    if (!dlg) return;
+    const badge = document.getElementById('aboutVersionBadge');
+    if (badge && typeof APP_VERSION !== 'undefined') {
+        badge.textContent = APP_VERSION;
+    }
+    if (typeof dlg.showModal === 'function') dlg.showModal();
+    else dlg.setAttribute('open', '');
+}
+window.openAboutDialog = openAboutDialog;
+
+export function setupAboutDialog() {
+    const dlg = document.getElementById('aboutDialog');
+    if (!dlg) return;
+
+    const btnClose = document.getElementById('btnCloseAbout');
+    if (btnClose) {
+        btnClose.onclick = () => {
+            if (typeof dlg.close === 'function') dlg.close();
+            else dlg.removeAttribute('open');
+        };
+    }
+
+    const btnGitHub = document.getElementById('btnAboutGitHub');
+    if (btnGitHub) {
+        btnGitHub.onclick = (e) => {
+            e.preventDefault();
+            openExternalUrl('https://github.com/FS-21/Advanced-TMP-Editor');
+        };
+    }
+}
+
+function setupAboutMenu() {
+    const menuAbout = document.getElementById('menuAbout');
+    if (menuAbout) {
+        menuAbout.onclick = (e) => {
+            e.stopPropagation();
+            closeAllMenus();
+            openAboutDialog();
+        };
+    }
+
+    const menuGitHub = document.getElementById('menuGitHub');
+    if (menuGitHub) {
+        menuGitHub.onclick = (e) => {
+            e.stopPropagation();
+            closeAllMenus();
+            openExternalUrl('https://github.com/FS-21/Advanced-TMP-Editor');
+        };
+    }
+}
+
+

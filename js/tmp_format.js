@@ -71,32 +71,29 @@ export class TmpTsFile {
             cy_extra: dv.getInt32(offset + 32, true)
         };
         
-        // Based on analysis and user report:
-        // 36: Flags (uint8) - bit 0=Extra, bit 1=Z, bit 3=Transparent
-        // 37: Height (int8) - Actual elevation
-        // 38-39: Padding or potentially high bytes of height (but many files use byte only)
-        // 40: Terrain Type (uint8)
-        // 41: Ramp Type (uint8)
+        // Authoritative Westwood IsoTileRecord offsets (OpenTS isotype.h / isotype.cpp):
+        // 0..35:  int X, Y, ExtraOffset, ZDataOffset, ExtraZOffset, ExtraX, ExtraY, ExtraWidth, ExtraHeight
+        // 36..39: unsigned int flags: bit 0=IsHasExtraData, bit 1=IsHasZData, bit 2=IsRandomized
+        // 40:     unsigned char Height (elevation level)
+        // 41:     signed char TileType (LandType control color 0..15)
+        // 42:     signed char RampType (slope 0..20)
+        // 43..45: RGBStruct LowColor (base elevation radar color)
+        // 46..48: RGBStruct HighColor (high elevation radar color)
+        // 49..51: 3 bytes padding (struct size = 52)
+        // 52+:    Tile diamond data ((cx * cy) / 2 bytes)
         
-        // Corrected offsets for TS/RA2 TMP tile header (Format 80):
-        // 36: Flags (uint32 usually, but we read byte 36)
-        // 40: Height (int8) 
-        // 41: Land Type (uint8)
-        // 42: Ramp Type (uint8) 
-        // 43-48: Radar Colors (6 bytes)
-        
-        imageHeader.flags = dv.getUint8(offset + 36);
-        imageHeader.height = dv.getInt8(offset + 40);
+        imageHeader.flags = dv.getUint32(offset + 36, true);
+        imageHeader.height = dv.getUint8(offset + 40);
         imageHeader.land_type = dv.getUint8(offset + 41);
         imageHeader.ramp_type = dv.getUint8(offset + 42);
         
         imageHeader.has_extra_data = (imageHeader.flags & 0x01) !== 0;
         imageHeader.has_z_data = (imageHeader.flags & 0x02) !== 0;
-        imageHeader.has_damaged_data = (imageHeader.flags & 0x04) !== 0;
-        imageHeader.is_fully_transparent = (imageHeader.flags & 0x08) !== 0;
+        imageHeader.is_randomized = (imageHeader.flags & 0x04) !== 0;
+        // Backward-compatibility alias for legacy UI/session references:
+        imageHeader.has_damaged_data = imageHeader.is_randomized;
 
-        // Radar colors start at 42 (3 bytes each)
-        // Radar colors start at 43 (3 bytes each)
+        // Radar colors (LowColor and HighColor)
         imageHeader.radar_red_left = dv.getUint8(offset + 43);
         imageHeader.radar_green_left = dv.getUint8(offset + 44);
         imageHeader.radar_blue_left = dv.getUint8(offset + 45);
@@ -110,30 +107,34 @@ export class TmpTsFile {
         let zData = null;
         let extraImageData = null;
         let extraZData = null;
-        let damagedData = null;
         
         let currentEnd = dataOffset + diamondSize;
 
+        // In OpenTS, ZDataOffset is byte offset from start of record (offset + z_ofs)
         if (imageHeader.has_z_data) {
-            const zStart = imageHeader.z_ofs > 0 ? offset + imageHeader.z_ofs : currentEnd;
+            const zStart = (imageHeader.z_ofs > offset) 
+                ? imageHeader.z_ofs 
+                : (imageHeader.z_ofs > 0 ? offset + imageHeader.z_ofs : currentEnd);
             zData = new Uint8Array(u8.slice(zStart, zStart + diamondSize));
             if (imageHeader.z_ofs === 0) currentEnd += diamondSize;
         }
 
-        if (imageHeader.has_damaged_data) {
-            damagedData = new Uint8Array(u8.slice(currentEnd, currentEnd + diamondSize));
-            currentEnd += diamondSize;
-        }
+        // NOTE: In authentic Westwood TMP format (OpenTS), bit 2 is IsRandomized.
+        // There is NO binary "damagedData" payload block in TMP files.
         
         if (imageHeader.has_extra_data) {
             const extraSize = imageHeader.cx_extra * imageHeader.cy_extra;
-            if (extraSize > 1) {
-                const extraStart = imageHeader.extra_ofs > 0 ? offset + imageHeader.extra_ofs : currentEnd;
+            if (extraSize > 0) {
+                const extraStart = (imageHeader.extra_ofs > offset) 
+                    ? imageHeader.extra_ofs 
+                    : (imageHeader.extra_ofs > 0 ? offset + imageHeader.extra_ofs : currentEnd);
                 extraImageData = new Uint8Array(u8.slice(extraStart, extraStart + extraSize));
                 if (imageHeader.extra_ofs === 0) currentEnd += extraSize;
                 
                 if (imageHeader.has_z_data) {
-                    const extraZStart = imageHeader.extra_z_ofs > 0 ? offset + imageHeader.extra_z_ofs : currentEnd;
+                    const extraZStart = (imageHeader.extra_z_ofs > offset) 
+                        ? imageHeader.extra_z_ofs 
+                        : (imageHeader.extra_z_ofs > 0 ? offset + imageHeader.extra_z_ofs : currentEnd);
                     extraZData = new Uint8Array(u8.slice(extraZStart, extraZStart + extraSize));
                     if (imageHeader.extra_z_ofs === 0) currentEnd += extraSize;
                 }
@@ -141,7 +142,7 @@ export class TmpTsFile {
         }
 
         if (slot < 10) {
-            console.log(`[TMP] Tile[${slot}]: X=${imageHeader.x}, Y=${imageHeader.y}, H=${imageHeader.height}, Ter=${imageHeader.land_type}, Ramp=${imageHeader.ramp_type}, Flags=0x${imageHeader.flags.toString(16)}`);
+            console.log(`[TMP] Tile[${slot}]: X=${imageHeader.x}, Y=${imageHeader.y}, H=${imageHeader.height}, Ter=${imageHeader.land_type}, Ramp=${imageHeader.ramp_type}, Flags=0x${imageHeader.flags.toString(16)} (Rand=${imageHeader.is_randomized})`);
         }
         
         return {
@@ -155,7 +156,7 @@ export class TmpTsFile {
             zData: zData,          
             extraImageData, 
             extraZData,
-            damagedData,
+            damagedData: null,
             cx,
             cy
         };
@@ -261,11 +262,20 @@ export class TmpTsFile {
                 tileHeader.y = halfCy * (gx + gy);
             }
 
+            const cbExtraSize = (tileHeader.cx_extra || 0) * (tileHeader.cy_extra || 0);
+            const hasExtra = Boolean(tileHeader.has_extra_data && tile.extraImageData && cbExtraSize > 0);
+            const hasZ = Boolean(tileHeader.has_z_data && tile.zData);
+            const isRandom = Boolean(tileHeader.is_randomized || tileHeader.has_damaged_data || (tileHeader.flags & 0x04));
+
+            let flags = 0;
+            if (hasExtra) flags |= 0x01;
+            if (hasZ) flags |= 0x02;
+            if (isRandom) flags |= 0x04;
+
             const tilePayloadSize = 52 + cbDiamond + 
-                                   (tileHeader.has_z_data ? cbDiamond : 0) + 
-                                   ((tile.damagedData && (tileHeader.flags & 0x04)) ? cbDiamond : 0) + 
-                                   ((tileHeader.has_extra_data && tile.extraImageData) ? (tileHeader.cx_extra * tileHeader.cy_extra) : 0) +
-                                   ((tileHeader.has_extra_data && tile.extraImageData && tileHeader.has_z_data && tile.extraZData) ? (tileHeader.cx_extra * tileHeader.cy_extra) : 0);
+                                   (hasZ ? cbDiamond : 0) + 
+                                   (hasExtra ? cbExtraSize : 0) +
+                                   ((hasExtra && hasZ && tile.extraZData) ? cbExtraSize : 0);
             
             const tileBuf = new ArrayBuffer(tilePayloadSize);
             const dv = new DataView(tileBuf);
@@ -274,52 +284,52 @@ export class TmpTsFile {
             dv.setInt32(0, tileHeader.x || 0, true);
             dv.setInt32(4, tileHeader.y || 0, true);
             
-            // 🚨 Write Extra Metadata at offsets 20, 24, 28, 32
-            if (tileHeader.has_extra_data) {
+            // Extra Metadata (offsets 20, 24, 28, 32)
+            if (hasExtra) {
                 dv.setInt32(20, tileHeader.x_extra || 0, true);
                 dv.setInt32(24, tileHeader.y_extra || 0, true);
                 dv.setInt32(28, tileHeader.cx_extra || 0, true);
                 dv.setInt32(32, tileHeader.cy_extra || 0, true);
             }
 
-            // Main Image Data
+            // Main Diamond Image Data starts at offset 52
             if (tile.imageData) u8.set(tile.imageData, 52);
             
             let cursor = 52 + cbDiamond;
             
-            // Z-Data
-            if (tileHeader.has_z_data && tile.zData) { 
+            // Base Z-Data (OpenTS ZDataOffset: relative to record start)
+            if (hasZ) { 
                 dv.setInt32(12, cursor, true); 
                 u8.set(tile.zData, cursor); 
                 cursor += cbDiamond; 
+            } else {
+                dv.setInt32(12, 0, true);
             }
             
-            // Damaged Data
-            if (tile.damagedData && (tileHeader.flags & 0x04)) { 
-                u8.set(tile.damagedData, cursor); 
-                cursor += cbDiamond; 
-            }
-            
-            // Extra Data
-            const cbExtraSize = (tileHeader.cx_extra || 0) * (tileHeader.cy_extra || 0);
-            if (tileHeader.has_extra_data && tile.extraImageData && cbExtraSize > 0) {
+            // Extra Image Data (OpenTS ExtraOffset: relative to record start)
+            if (hasExtra) {
                 dv.setInt32(8, cursor, true); 
                 u8.set(tile.extraImageData, cursor); 
                 cursor += cbExtraSize;
                 
-                // Extra Z-Data
-                if (tileHeader.has_z_data && tile.extraZData) { 
+                // Extra Z-Data (OpenTS ExtraZOffset: relative to record start)
+                if (hasZ && tile.extraZData) { 
                     dv.setInt32(16, cursor, true); 
                     u8.set(tile.extraZData, cursor); 
                     cursor += cbExtraSize; 
+                } else {
+                    dv.setInt32(16, 0, true);
                 }
+            } else {
+                dv.setInt32(8, 0, true);
+                dv.setInt32(16, 0, true);
             }
             
-            // Header Attributes
-            dv.setUint32(36, tileHeader.flags || 0, true); // Write as 32-bit flags
-            dv.setInt8(40, tileHeader.height || 0);
-            dv.setUint8(41, tileHeader.land_type || 0);
-            dv.setUint8(42, tileHeader.ramp_type || 0);
+            // Header Attributes (32-bit flags, elevation byte, terrain color, ramp, radar colors)
+            dv.setUint32(36, flags, true);
+            dv.setUint8(40, (tileHeader.height || 0) & 0xFF);
+            dv.setUint8(41, (tileHeader.land_type || 0) & 0xFF);
+            dv.setUint8(42, (tileHeader.ramp_type || 0) & 0xFF);
             dv.setUint8(43, tileHeader.radar_red_left || 0);
             dv.setUint8(44, tileHeader.radar_green_left || 0);
             dv.setUint8(45, tileHeader.radar_blue_left || 0);

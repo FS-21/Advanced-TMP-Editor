@@ -3,7 +3,8 @@ let currentContextTabIndex = -1;
 
 import { state, Tab, generateId } from './state.js';
 import { updateUIState } from './main.js';
-import { renderCanvas, updateTilesList, renderPalette, updateCanvasSize, renderOverlay, showConfirm } from './ui.js';
+import { renderCanvas, updateTilesList, renderPalette, updateCanvasSize, renderOverlay, showConfirm, showChoice } from './ui.js';
+import { handleSaveTmp, handleSaveAll } from './file_io.js';
 import { renderHistory } from './history.js';
 import { t } from './translations.js';
 
@@ -63,12 +64,19 @@ export function initTabs() {
         duplicateTabAt(currentContextTabIndex);
         ctxMenu.classList.remove('active');
     };
-    document.getElementById('ctxCloseTab').onclick = () => {
-        closeTab(currentContextTabIndex);
-        ctxMenu.classList.remove('active');
-    };
     document.getElementById('ctxCloseOthers').onclick = () => {
         closeOtherTabs(currentContextTabIndex);
+        ctxMenu.classList.remove('active');
+    };
+    const ctxCloseAll = document.getElementById('ctxCloseAll');
+    if (ctxCloseAll) {
+        ctxCloseAll.onclick = () => {
+            closeAllTabs();
+            ctxMenu.classList.remove('active');
+        };
+    }
+    document.getElementById('ctxCloseTab').onclick = () => {
+        closeTab(currentContextTabIndex);
         ctxMenu.classList.remove('active');
     };
     document.getElementById('ctxReopenTab').onclick = () => {
@@ -114,6 +122,8 @@ export function initTabs() {
     // Component initialization
     window.renderTabs = renderTabs;
     window.updateCurrentTabName = updateCurrentTabName;
+    window.closeTab = closeTab;
+    window.closeAllTabs = closeAllTabs;
     renderTabs();
 }
 
@@ -148,10 +158,65 @@ function duplicateTabAt(index) {
     switchTab(index + 1);
 }
 
-function closeOtherTabs(keptIndex) {
+async function closeOtherTabs(keptIndex) {
+    const others = state.tabs
+        .map((tab, idx) => ({ tab, idx }))
+        .filter(({ idx }) => idx !== keptIndex);
+
+    for (const { tab, idx } of others) {
+        if (!tab.hasChanges) continue;
+
+        const tabName = tab.fileName || tab.idName || (tab.tmpData?.filename) || `Tab ${idx + 1}`;
+        const answer = await showChoice(
+            t('dlg_close_tab_title'),
+            t('msg_confirm_close_single_unsaved').replace('{name}', tabName),
+            t('btn_save_and_close'),
+            t('btn_discard_and_close')
+        );
+        if (answer === 'cancel') {
+            return;
+        }
+        if (answer === 'opt1') {
+            try {
+                const previousActive = state.activeTabIndex;
+                state.activeTabIndex = idx;
+                state.loadFromTab(tab);
+
+                await handleSaveTmp();
+                const saveOk = !state.hasChanges;
+                state.saveToTab(tab);
+                if (previousActive !== idx) {
+                    state.activeTabIndex = previousActive;
+                }
+                if (!saveOk) {
+                    console.warn('[closeOtherTabs] Save was cancelled for', tabName);
+                    return;
+                }
+            } catch (e) {
+                console.warn('[closeOtherTabs] Save failed for', tabName, e);
+                return;
+            }
+        }
+    }
+
     const kept = state.tabs[keptIndex];
+    if (state.activeTabIndex >= 0 && state.activeTabIndex < state.tabs.length) {
+        const activeTab = state.tabs[state.activeTabIndex];
+        if (activeTab !== kept) {
+            state.saveToTab(activeTab);
+        }
+    }
     state.tabs = [kept];
-    switchTab(0);
+    state.activeTabIndex = 0;
+    state.loadFromTab(kept);
+    renderTabs();
+    updateUIState();
+    updateCanvasSize();
+    renderCanvas();
+    renderOverlay();
+    updateTilesList();
+    renderPalette();
+    renderHistory();
 }
 
 function reopenLastTab() {
@@ -191,30 +256,142 @@ export function switchTab(index) {
     }, 50);
 }
 
-export async function closeTab(index, e) {
-    if (e) e.stopPropagation();
-    
-    const tab = state.tabs[index];
-    if (tab.hasChanges) {
+function resetToCleanDefaultTab(preservePaletteFromTab = null) {
+    const cleanTab = new Tab(generateId(), null, preservePaletteFromTab || state.tabs[0] || null);
+    state.newFileCounter = 1;
+    cleanTab.idName = 'New File 1';
+    cleanTab.fileName = null;
+    cleanTab.isNewProject = true;
+    cleanTab.hasChanges = false;
+    cleanTab.tmpData = null;
+    cleanTab.tiles = [];
+    cleanTab.fileHandle = null;
+    cleanTab.history = [];
+    cleanTab.historyPtr = -1;
+    cleanTab.savedHistoryPtr = -1;
+
+    state.tabs = [cleanTab];
+    state.activeTabIndex = 0;
+
+    // Reset global state explicitly
+    state.fileHandle = null;
+    state.tmpData = null;
+    state.tiles = [];
+    state.currentTileIdx = -1;
+    state.tileSelection = new Set();
+    state.subSelection = new Set();
+    state.overlappingTiles = new Set();
+    state.history = [];
+    state.historyPtr = -1;
+    state.savedHistoryPtr = -1;
+    state.hasChanges = false;
+
+    state.loadFromTab(cleanTab);
+
+    renderTabs();
+    updateUIState();
+    updateCanvasSize();
+    renderCanvas();
+    renderOverlay();
+    updateTilesList();
+    renderPalette();
+    renderHistory();
+}
+
+export async function closeAllTabs() {
+    // Sync active tab state
+    if (state.activeTabIndex >= 0 && state.tabs[state.activeTabIndex]) {
+        state.saveToTab(state.tabs[state.activeTabIndex]);
+    }
+
+    const totalCount = state.tabs.length;
+    const firstTab = state.tabs[0];
+    const hasFirstData = (state.activeTabIndex === 0)
+        ? (!!state.tmpData || !!firstTab.tmpData)
+        : !!firstTab.tmpData;
+
+    // If only one empty and unmodified tab, nothing to close
+    if (totalCount === 1 && !hasFirstData && !firstTab.hasChanges && !firstTab.isNewProject) {
+        return;
+    }
+
+    const unsavedTabs = state.tabs.filter(t => t.hasChanges);
+
+    if (unsavedTabs.length > 0) {
+        const choice = await showChoice(
+            t('dlg_close_all_title'),
+            t('msg_confirm_close_all_unsaved').replace('{count}', totalCount).replace('{unsaved}', unsavedTabs.length),
+            t('btn_save_and_close'),
+            t('btn_discard_and_close')
+        );
+
+        if (choice === 'cancel') return;
+
+        if (choice === 'opt1') {
+            if (typeof handleSaveAll === 'function') {
+                await handleSaveAll();
+                const remainingUnsaved = state.tabs.filter(t => t.hasChanges);
+                if (remainingUnsaved.length > 0) {
+                    return; // User cancelled saving
+                }
+            }
+        }
+    } else {
         const confirmed = await showConfirm(
-            t('dlg_confirm_title') || "Confirm",
-            t('msg_confirm_close_tab') || "Changes will be lost. Close anyway?"
+            t('dlg_close_all_title'),
+            t('msg_confirm_close_all_clean').replace('{count}', totalCount)
         );
         if (!confirmed) return;
     }
 
+    resetToCleanDefaultTab();
+}
+
+export async function closeTab(index, e) {
+    if (e) e.stopPropagation();
+    
+    // Ensure current tab state is saved
+    if (index === state.activeTabIndex && state.tabs[index]) {
+        state.saveToTab(state.tabs[index]);
+    }
+
+    const tab = state.tabs[index];
+    if (!tab) return;
+
+    if (tab.hasChanges) {
+        const tabName = tab.fileName || tab.idName || (tab.tmpData?.filename) || `Tab ${index + 1}`;
+        const choice = await showChoice(
+            t('dlg_close_tab_title'),
+            t('msg_confirm_close_single_unsaved').replace('{name}', tabName),
+            t('btn_save_and_close'),
+            t('btn_discard_and_close')
+        );
+        if (choice === 'cancel') return;
+
+        if (choice === 'opt1') {
+            const previousActive = state.activeTabIndex;
+            if (state.activeTabIndex !== index) {
+                state.activeTabIndex = index;
+                state.loadFromTab(tab);
+            }
+            await handleSaveTmp();
+            const saveOk = !state.hasChanges;
+            state.saveToTab(tab);
+            if (!saveOk) {
+                if (previousActive !== index) {
+                    state.activeTabIndex = previousActive;
+                    state.loadFromTab(state.tabs[previousActive]);
+                }
+                return;
+            }
+        }
+    }
+
     // Save for reopen logic
-    if (index === state.activeTabIndex) state.saveToTab(tab);
     lastClosedTab = structuredClone(tab);
 
     if (state.tabs.length <= 1) {
-        // Reset single remaining tab state
-        state.tabs[0] = new Tab(generateId());
-        state.newFileCounter = 1;
-        state.tabs[0].idName = `New File 1`;
-        state.tabs[0].isNewProject = true;
-        state.tabs[0].hasChanges = false;
-        switchTab(0);
+        resetToCleanDefaultTab(tab);
         return;
     }
 
@@ -263,6 +440,15 @@ function renderTabs() {
 
     const canClose = state.tabs.length > 1;
     tabBar.classList.toggle('single-tab', !canClose);
+
+    const menuSaveAll = document.getElementById('menuSaveAll');
+    if (menuSaveAll) {
+        menuSaveAll.style.display = canClose ? 'flex' : 'none';
+    }
+    const menuCloseAllTmp = document.getElementById('menuCloseAllTmp');
+    if (menuCloseAllTmp) {
+        menuCloseAllTmp.style.display = canClose ? 'flex' : 'none';
+    }
 
     // Hide entire bar if only one tab AND it's totally empty
     // CRITICAL: Must check live state.tmpData for the active tab
