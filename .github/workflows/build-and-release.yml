@@ -8,10 +8,8 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  build-web:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
     - name: Checkout code
@@ -51,26 +49,14 @@ jobs:
         zip -r "../../Advanced-TMP-Editor-PWA-${{ steps.vars.outputs.version }}.zip" .
         cd ../..
 
-    - name: Upload Artifacts (Push/PR)
+    - name: Upload Web Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: distribution-files
-        path: |
-          Advanced-TMP-Editor-*.zip
+        name: web-dist
+        path: Advanced-TMP-Editor-*.zip
 
-    - name: Create Release and Upload Web Assets
-      if: startsWith(github.ref, 'refs/tags/v')
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          Advanced-TMP-Editor-*.zip
-        generate_release_notes: true
-        draft: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-tauri:
-    needs: build
+  build-desktop:
+    needs: build-web
     strategy:
       fail-fast: false
       matrix:
@@ -78,8 +64,6 @@ jobs:
           - platform: 'windows-latest'
           - platform: 'ubuntu-22.04'
     runs-on: ${{ matrix.platform }}
-    permissions:
-      contents: write
 
     steps:
     - name: Checkout code
@@ -113,27 +97,49 @@ jobs:
     - name: Build Tauri Desktop App
       run: cargo tauri build
 
+    - name: Prepare Desktop Assets
+      shell: bash
+      run: |
+        mkdir -p desktop-dist
+        if [ "${{ matrix.platform }}" == "windows-latest" ]; then
+          if [ -f "src-tauri/target/release/Advanced-TMP-Editor.exe" ]; then
+            cp "src-tauri/target/release/Advanced-TMP-Editor.exe" desktop-dist/
+          elif [ -f "src-tauri/target/release/advanced-tmp-editor.exe" ]; then
+            cp "src-tauri/target/release/advanced-tmp-editor.exe" desktop-dist/Advanced-TMP-Editor.exe
+          fi
+        else
+          find src-tauri/target/release/bundle/appimage -name "*.AppImage" -exec cp {} desktop-dist/ \; 2>/dev/null || true
+          find src-tauri/target/release/bundle/deb -name "*.deb" -exec cp {} desktop-dist/ \; 2>/dev/null || true
+        fi
+
     - name: Upload Desktop Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: desktop-bundle-${{ matrix.platform }}
-        path: |
-          src-tauri/target/release/Advanced-TMP-Editor.exe
-          src-tauri/target/release/advanced-tmp-editor.exe
-          src-tauri/target/release/advanced-tmp-editor
-          src-tauri/target/release/bundle/appimage/*.AppImage
-          src-tauri/target/release/bundle/deb/*.deb
+        name: desktop-${{ matrix.platform }}
+        path: desktop-dist/*
 
-    - name: Upload Desktop Assets to Release
-      if: startsWith(github.ref, 'refs/tags/v')
+  release:
+    needs: [build-web, build-desktop]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        merge-multiple: true
+        path: release-assets
+
+    - name: List Release Assets
+      run: ls -la release-assets
+
+    - name: Publish GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: |
-          src-tauri/target/release/Advanced-TMP-Editor.exe
-          src-tauri/target/release/advanced-tmp-editor.exe
-          src-tauri/target/release/advanced-tmp-editor
-          src-tauri/target/release/bundle/appimage/*.AppImage
-          src-tauri/target/release/bundle/deb/*.deb
-        draft: true
+        files: release-assets/*
+        generate_release_notes: true
+        draft: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
