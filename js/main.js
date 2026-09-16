@@ -20,14 +20,15 @@ import { state } from './state.js';
 import { elements } from './constants.js';
 import {
     initMenu, updateMenuState, initRecentFiles,
-    initTileContextMenuHandlers, showTileContextMenu, hideTileContextMenu
+    initTileContextMenuHandlers, showTileContextMenu, hideTileContextMenu,
+    getRecentFilePathByName
 } from './menu_handlers.js';
 import {
     renderCanvas, renderOverlay, updateCanvasSize, updateTilesList, setupTooltips,
     setupSubmenusRecursive, setupPaletteMenu, updateMismatchNotification, renderPalette, initHistoryHooks,
     selectAllTiles, deselectAllTiles, invertTileSelection, selectTileAt, selectTilesInRect,
     copySelectedTiles, cutSelectedTiles, pasteTiles, pasteTilesAtEnd, deleteSelectedTiles, updateTileProperties, updateExtraBtnState, updateTileDataTable,
-    showPasteNotification
+    showPasteNotification, showConfirm, showChoice
 } from './ui.js';
 import { redo, undo, pushHistory, resetHistoryForFreshOpen } from './history.js';
 import { t, initLanguageSelector } from './translations.js';
@@ -36,6 +37,7 @@ import { setupColorShiftUIListeners } from './tools.js';
 import { initTabs, updateCurrentTabName, createNewTab, closeTab, switchTab } from './tabs.js';
 import { TmpTsFile } from './tmp_format.js';
 import { getActivePaletteId, getLib, findNodeById, updatePaletteSelectorUI, base64ToBuffer, setActivePaletteId } from './palette_menu.js';
+import { isNativeApp, nativeReadFile, nativeGetCliArgs, nativeListenEvent, nativeExitApp, nativeReadClipboardImage, nativeOpenUrl, nativeGetFileModifiedTime, nativeResolveDroppedFiles } from './native_bridge.js';
 
 // Toggle UI visibility based on whether project is loaded
 function updateUIState() {
@@ -179,6 +181,21 @@ function init() {
             });
         }
 
+        // Native CLI argument loading (file association double click / command line)
+        if (isNativeApp()) {
+            nativeGetCliArgs().then(args => {
+                if (args && args.length > 0) {
+                    const filePaths = args.filter(a => !a.startsWith('-') && !a.startsWith('/'));
+                    if (filePaths.length > 0) {
+                        console.log('[Native CLI] Launching with files:', filePaths);
+                        openNativePaths(filePaths);
+                    }
+                }
+            }).catch(err => {
+                console.warn('[Native CLI] Error reading CLI args:', err);
+            });
+        }
+
         // Initialize UI state visibility
         updateUIState();
 
@@ -240,6 +257,35 @@ function setupEventListeners() {
         if (!e.key) return;
         const k = e.key.toLowerCase();
         const ctrl = e.ctrlKey || e.metaKey;
+
+        // Desktop / Reserved Shortcuts: Ctrl+W, Ctrl+Tab, F5 protection
+        if ((ctrl && k === 'w') || (ctrl && (k === 'f4' || e.code === 'F4'))) {
+            e.preventDefault();
+            if (typeof closeTab === 'function') {
+                closeTab(state.activeTabIndex);
+            }
+            return;
+        }
+
+        if (ctrl && k === 'tab') {
+            e.preventDefault();
+            if (state.tabs && state.tabs.length > 1) {
+                const nextIdx = e.shiftKey
+                    ? (state.activeTabIndex - 1 + state.tabs.length) % state.tabs.length
+                    : (state.activeTabIndex + 1) % state.tabs.length;
+                switchTab(nextIdx);
+            }
+            return;
+        }
+
+        if (isNativeApp() && (e.key === 'F5' || (ctrl && k === 'r'))) {
+            const hasUnsaved = state.tabs && state.tabs.some(t => t.hasChanges);
+            if (hasUnsaved) {
+                e.preventDefault();
+                console.log('[App] F5/Ctrl+R blocked due to unsaved changes');
+                return;
+            }
+        }
 
         if (k === 'g' && !ctrl) {
             state.showGrid = !state.showGrid;
@@ -467,7 +513,8 @@ function setupEventListeners() {
         if (!e.target.files || !e.target.files.length) return;
         const files = Array.from(e.target.files);
         try {
-            await openFilesBatch(files, null);
+            const filePaths = files.map(f => f.path || null);
+            await openFilesBatch(files, null, filePaths);
         } catch (err) {
             console.error("Failed to load TMP batch:", err);
             alert(t('msg_err_load_tmp') ? t('msg_err_load_tmp').replace('{{error}}', err.message) : err.message);
@@ -1251,7 +1298,7 @@ function parseColorRef(str) {
 function handleConfirmImport(impTmpData, impTmpPalette, paletteSelectedManually, paletteNodeId) {
     if (!impTmpData) return;
 
-    // 1. Sync Palette
+    // Synchronize Palette
     if (impTmpPalette) {
         state.palette = impTmpPalette.map(c => c ? { ...c } : null);
         state.paletteVersion++;
@@ -1267,22 +1314,53 @@ function handleConfirmImport(impTmpData, impTmpPalette, paletteSelectedManually,
         setActivePaletteId(paletteNodeId);
     }
 
-    // 2. Use Native Loader
+    // Bind native filePath or web fileHandle BEFORE loading data and updating tab name
+    const activeTab = (state.activeTabIndex >= 0 && state.tabs && state.tabs[state.activeTabIndex]) ? state.tabs[state.activeTabIndex] : null;
+    const resolvedPath = (impTmpData && impTmpData.filePath) || window._lastTmpFilePath;
+    if (resolvedPath) {
+        state.filePath = resolvedPath;
+        state.fileHandle = null;
+        window._lastTmpFilePath = resolvedPath;
+        if (activeTab) {
+            activeTab.filePath = resolvedPath;
+            activeTab.fileHandle = null;
+            activeTab.isNewProject = false;
+        }
+        if (impTmpData.filename) {
+            saveRecentFile(impTmpData.filename, resolvedPath);
+        }
+        if (isNativeApp()) {
+            nativeGetFileModifiedTime(resolvedPath).then(mtime => {
+                state.fileLastModified = mtime;
+                if (activeTab) activeTab.fileLastModified = mtime;
+            }).catch(() => {});
+        }
+    } else if (window._lastTmpFileHandle) {
+        state.fileHandle = window._lastTmpFileHandle;
+        state.filePath = null;
+        if (activeTab) {
+            activeTab.fileHandle = window._lastTmpFileHandle;
+            activeTab.filePath = null;
+            activeTab.isNewProject = false;
+        }
+        if (impTmpData.filename) {
+            saveRecentFile(impTmpData.filename, window._lastTmpFileHandle);
+        }
+    }
+
+    // Load TMP data via native loader
     loadTmpData(impTmpData, impTmpData.filename || '', true);
+    if (resolvedPath && state.tmpData) {
+        state.tmpData.filePath = resolvedPath;
+    }
 
-    // 2.5 Update Tab Name
+    // Update Tab Name
     if (impTmpData.filename) {
-        updateCurrentTabName(impTmpData.filename);
+        updateCurrentTabName(impTmpData.filename, false);
     }
 
-    // 3. Update UI — reset history so the freshly opened file is the only
-    // entry (Ctrl+Z will not erase the file).
+    // Update UI and reset history for fresh open
     resetHistoryForFreshOpen();
-
-    // 4. Save to Recent Files (if FSAPI handle available)
-    if (window._lastTmpFileHandle && impTmpData.filename) {
-        saveRecentFile(impTmpData.filename, window._lastTmpFileHandle);
-    }
 
     // Update UI element visibility
     updateUIState();
@@ -1541,6 +1619,24 @@ window.addEventListener('paste', async (e) => {
         }
     }
 
+    // Native app clipboard check (Tauri desktop)
+    if (isNativeApp()) {
+        const nativeImg = await nativeReadClipboardImage();
+        if (nativeImg && nativeImg.width && nativeImg.height && nativeImg.rgba) {
+            e.preventDefault();
+            const pasteSettings = window.pendingSystemPaste || { 
+                mode: state.tileSelection?.size > 0 ? 'img_merged' : 'img_total', 
+                isForced: state.tileSelection?.size > 0 
+            };
+            window.pendingSystemPaste = null;
+            if (window.processSystemImagePaste) {
+                const imgData = new ImageData(nativeImg.rgba, nativeImg.width, nativeImg.height);
+                window.processSystemImagePaste(imgData, pasteSettings.mode, pasteSettings.isForced);
+            }
+            return;
+        }
+    }
+
     let hasImage = false;
     if (e.clipboardData && e.clipboardData.items) {
         for (const item of e.clipboardData.items) {
@@ -1700,37 +1796,107 @@ document.addEventListener('dragleave', (e) => {
     }
 });
 
-export async function processSystemFileOpen(file, handle = null) {
+export async function processSystemFileOpen(file, handle = null, filePath = null) {
     try {
         const buffer = await file.arrayBuffer();
         const tmpData = TmpTsFile.parse(buffer);
 
-        // SUCCESS: Open in a new tab
-        if (typeof createNewTab === 'function') {
-            const newTab = createNewTab();
-            if (newTab && handle) {
-                newTab.fileHandle = handle; // Store handle in the tab object!
+        let targetFilePath = filePath || (file && file.path) || null;
+        if (!targetFilePath && isNativeApp() && file && file.name) {
+            const recent = await getRecentFilePathByName(file.name);
+            if (recent) {
+                try {
+                    const checkMtime = await nativeGetFileModifiedTime(recent);
+                    if (checkMtime) {
+                        targetFilePath = recent;
+                    }
+                } catch (e) {}
+            }
+            if (!targetFilePath) {
+                const lastDir = window._lastNativeDirectory || localStorage.getItem('last_native_directory');
+                if (lastDir) {
+                    const candidate = lastDir.replace(/[/\\]+$/, '') + '\\' + file.name;
+                    try {
+                        const checkMtime = await nativeGetFileModifiedTime(candidate);
+                        if (checkMtime) {
+                            targetFilePath = candidate;
+                        }
+                    } catch (e) {}
+                }
+            }
+        }
+
+        if (targetFilePath) {
+            const dir = targetFilePath.substring(0, Math.max(targetFilePath.lastIndexOf('/'), targetFilePath.lastIndexOf('\\')));
+            if (dir) {
+                window._lastNativeDirectory = dir;
+                try { localStorage.setItem('last_native_directory', dir); } catch (e) {}
+            }
+        }
+
+        const fileName = targetFilePath ? targetFilePath.split(/[/\\]/).pop() : (handle ? handle.name : file.name);
+
+        let mtime = 0;
+        if (targetFilePath && isNativeApp()) {
+            mtime = await nativeGetFileModifiedTime(targetFilePath);
+        }
+
+        // Determine if current tab can be reused (only if completely empty and untouched)
+        const curTab = (state.activeTabIndex >= 0 && state.tabs && state.tabs[state.activeTabIndex]) ? state.tabs[state.activeTabIndex] : null;
+        const isCurrentTabEmpty = curTab && (!state.tiles || state.tiles.length === 0) && !state.hasChanges && !curTab.fileName && !curTab.filePath && !curTab.fileHandle;
+
+        let activeTab = curTab;
+        if (!isCurrentTabEmpty && typeof createNewTab === 'function') {
+            activeTab = createNewTab();
+        }
+
+        if (activeTab) {
+            activeTab.isNewProject = false;
+            activeTab.fileName = fileName;
+            activeTab.idName = fileName;
+            if (targetFilePath) {
+                activeTab.filePath = targetFilePath;
+                activeTab.fileHandle = null;
+                activeTab.fileLastModified = mtime;
+            } else if (handle) {
+                activeTab.fileHandle = handle;
+                activeTab.filePath = null;
             }
         }
         
-        if (typeof loadTmpData === 'function') loadTmpData(tmpData, handle ? handle.name : file.name);
-        if (typeof updateCurrentTabName === 'function') updateCurrentTabName(handle ? handle.name : file.name);
+        if (targetFilePath) {
+            state.filePath = targetFilePath;
+            state.fileHandle = null;
+            state.fileLastModified = mtime;
+            window._lastTmpFilePath = targetFilePath;
+            window._lastTmpFileHandle = null;
+        } else if (handle) {
+            state.fileHandle = handle;
+            state.filePath = null;
+            window._lastTmpFileHandle = handle;
+            window._lastTmpFilePath = null;
+        }
+
+        if (typeof loadTmpData === 'function') loadTmpData(tmpData, fileName);
+        if (typeof updateCurrentTabName === 'function') updateCurrentTabName(fileName, false);
         
-        // Sync active state fileHandle from the new tab
-        state.fileHandle = handle;
         state.savedHistoryPtr = state.historyPtr; 
         state.hasChanges = false;
         
-        console.log(`[FileOpen] Loaded TMP: ${file.name} ${handle ? '(Direct Save Enabled)' : ''}`);
+        if (typeof saveRecentFile === 'function') {
+            saveRecentFile(fileName, targetFilePath || handle);
+        }
+
+        console.log(`[FileOpen] Loaded TMP: ${fileName} ${targetFilePath ? '(Native Direct Save Enabled)' : handle ? '(Direct Save Enabled)' : ''}`);
         return true;
     } catch (err) {
-        console.warn(`[FileOpen] Ignoring invalid or failed file: ${file.name}`);
+        console.warn(`[FileOpen] Ignoring invalid or failed file: ${file.name}`, err);
         return false;
     }
 }
 window.processSystemFileOpen = processSystemFileOpen;
 
-export async function openFilesBatch(files, fileHandles = []) {
+export async function openFilesBatch(files, fileHandles = [], filePaths = []) {
     if (!files || files.length === 0) return;
 
     const batchDialog = document.getElementById('batchLoadingDialog');
@@ -1759,11 +1925,52 @@ export async function openFilesBatch(files, fileHandles = []) {
         await new Promise(resolve => setTimeout(resolve, 0));
     }
 
-    // 1. Scan the files and collect ALL valid TMP files with live progress
+    // Scan files and collect all valid TMP files with progress reporting
     const validEntries = [];
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const handle = (fileHandles && fileHandles[i]) || null;
+        let filePath = (filePaths && filePaths[i]) || (file && file.path) || null;
+
+        if (!filePath && isNativeApp() && file && file.name) {
+            try {
+                const resolved = await nativeResolveDroppedFiles([file]);
+                if (resolved && resolved[0]) {
+                    filePath = resolved[0];
+                }
+            } catch (e) {}
+            if (!filePath) {
+                const recent = await getRecentFilePathByName(file.name);
+                if (recent) {
+                    try {
+                        const checkMtime = await nativeGetFileModifiedTime(recent);
+                        if (checkMtime) {
+                            filePath = recent;
+                        }
+                    } catch (e) {}
+                }
+            }
+            if (!filePath) {
+                const lastDir = window._lastNativeDirectory || localStorage.getItem('last_native_directory');
+                if (lastDir) {
+                    const candidate = lastDir.replace(/[/\\]+$/, '') + '\\' + file.name;
+                    try {
+                        const checkMtime = await nativeGetFileModifiedTime(candidate);
+                        if (checkMtime) {
+                            filePath = candidate;
+                        }
+                    } catch (e) {}
+                }
+            }
+        }
+
+        if (filePath) {
+            const dir = filePath.substring(0, Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\')));
+            if (dir) {
+                window._lastNativeDirectory = dir;
+                try { localStorage.setItem('last_native_directory', dir); } catch (e) {}
+            }
+        }
 
         if (isBatch && batchDialog) {
             const currentNum = i + 1;
@@ -1785,7 +1992,7 @@ export async function openFilesBatch(files, fileHandles = []) {
             try {
                 const tmpData = TmpTsFile.parse(buffer);
                 if (tmpData && tmpData.header) {
-                    validEntries.push({ file, handle, buffer, tmpData });
+                    validEntries.push({ file, handle, filePath, buffer, tmpData });
                 }
             } catch (pErr) {
                 console.warn(`[openFilesBatch] Skipping non-TMP file: ${file.name}`, pErr);
@@ -1811,8 +2018,9 @@ export async function openFilesBatch(files, fileHandles = []) {
     let firstOpenedTabIndex = -1;
 
     for (let i = 0; i < validEntries.length; i++) {
-        const { file, handle, tmpData } = validEntries[i];
+        const { file, handle, filePath, tmpData } = validEntries[i];
         const currentNum = i + 1;
+        const fn = filePath ? filePath.split(/[/\\]/).pop() : (handle ? handle.name : file.name);
 
         if (isBatch && batchDialog) {
             // Processing phase: 50% to 100%
@@ -1830,26 +2038,73 @@ export async function openFilesBatch(files, fileHandles = []) {
             await new Promise(resolve => setTimeout(resolve, 0));
         }
 
+        let mtime = 0;
+        if (filePath) {
+            mtime = await nativeGetFileModifiedTime(filePath);
+        }
+
         if (i === 0 && isCurrentTabEmpty) {
             // First file reuses the current empty tab
-            if (handle) curTab.fileHandle = handle;
-            loadTmpData(tmpData, handle ? handle.name : file.name);
-            updateCurrentTabName(handle ? handle.name : file.name);
-            state.fileHandle = handle;
+            curTab.isNewProject = false;
+            if (filePath) {
+                curTab.filePath = filePath;
+                curTab.fileHandle = null;
+                curTab.fileLastModified = mtime;
+                state.filePath = filePath;
+                state.fileHandle = null;
+                state.fileLastModified = mtime;
+                window._lastTmpFilePath = filePath;
+                window._lastTmpFileHandle = null;
+            } else if (handle) {
+                curTab.fileHandle = handle;
+                curTab.filePath = null;
+                state.fileHandle = handle;
+                state.filePath = null;
+                window._lastTmpFileHandle = handle;
+                window._lastTmpFilePath = null;
+            }
+            if (filePath && tmpData) tmpData.filePath = filePath;
+            loadTmpData(tmpData, fn);
+            if (filePath && state.tmpData) state.tmpData.filePath = filePath;
+            updateCurrentTabName(fn, false);
             state.savedHistoryPtr = state.historyPtr;
             state.hasChanges = false;
+            if (typeof saveRecentFile === 'function') {
+                saveRecentFile(fn, filePath || handle);
+            }
             firstOpenedTabIndex = state.activeTabIndex;
         } else {
             // Open in a new tab
             const newTab = createNewTab();
-            if (newTab && handle) {
-                newTab.fileHandle = handle;
+            if (newTab) {
+                newTab.isNewProject = false;
+                if (filePath) {
+                    newTab.filePath = filePath;
+                    newTab.fileHandle = null;
+                    newTab.fileLastModified = mtime;
+                    state.filePath = filePath;
+                    state.fileHandle = null;
+                    state.fileLastModified = mtime;
+                    window._lastTmpFilePath = filePath;
+                    window._lastTmpFileHandle = null;
+                } else if (handle) {
+                    newTab.fileHandle = handle;
+                    newTab.filePath = null;
+                    state.fileHandle = handle;
+                    state.filePath = null;
+                    window._lastTmpFileHandle = handle;
+                    window._lastTmpFilePath = null;
+                }
             }
-            loadTmpData(tmpData, handle ? handle.name : file.name);
-            updateCurrentTabName(handle ? handle.name : file.name);
-            state.fileHandle = handle;
+            if (filePath && tmpData) tmpData.filePath = filePath;
+            loadTmpData(tmpData, fn);
+            if (filePath && state.tmpData) state.tmpData.filePath = filePath;
+            updateCurrentTabName(fn, false);
             state.savedHistoryPtr = state.historyPtr;
             state.hasChanges = false;
+            if (typeof saveRecentFile === 'function') {
+                saveRecentFile(fn, filePath || handle);
+            }
             if (firstOpenedTabIndex === -1) {
                 firstOpenedTabIndex = state.activeTabIndex;
             }
@@ -1875,14 +2130,111 @@ export async function openFilesBatch(files, fileHandles = []) {
 }
 window.openFilesBatch = openFilesBatch;
 
+export async function openNativePaths(paths) {
+    if (!paths || paths.length === 0) return;
+    const files = [];
+    const filePaths = [];
+    for (const p of paths) {
+        try {
+            const u8 = await nativeReadFile(p);
+            const buf = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+            const name = p.split(/[/\\]/).pop();
+            files.push({
+                name,
+                path: p,
+                arrayBuffer: async () => buf
+            });
+            filePaths.push(p);
+        } catch (err) {
+            console.error('[Native File Load] Failed to read:', p, err);
+        }
+    }
+    if (files.length > 0) {
+        await openFilesBatch(files, [], filePaths);
+    }
+}
+
+// Listen to native Tauri file drop events if in native desktop app
+if (isNativeApp()) {
+    nativeListenEvent('tauri://drag-drop', async (event) => {
+        const payload = event?.payload;
+        const paths = (payload && Array.isArray(payload.paths)) ? payload.paths
+                    : (Array.isArray(payload)) ? payload
+                    : (payload && typeof payload === 'object' && Array.isArray(payload.files)) ? payload.files
+                    : null;
+        if (Array.isArray(paths) && paths.length > 0) {
+            await openNativePaths(paths);
+        }
+    });
+}
+
+// Web mode unsaved warning before tab/window close
+window.addEventListener('beforeunload', (e) => {
+    if (state.activeTabIndex >= 0 && state.tabs && state.tabs[state.activeTabIndex]) {
+        state.saveToTab(state.tabs[state.activeTabIndex]);
+    }
+    const hasUnsaved = state.tabs && state.tabs.some(t => t.hasChanges);
+    if (hasUnsaved) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+    }
+});
+
+// Intercept external links so desktop WebView2 doesn't navigate away from editor UI
+document.addEventListener('click', (e) => {
+    const a = e.target.closest('a');
+    if (a && a.href && (a.href.startsWith('http://') || a.href.startsWith('https://') || a.href.startsWith('mailto:'))) {
+        if (isNativeApp()) {
+            e.preventDefault();
+            nativeOpenUrl(a.href);
+        }
+    }
+});
+
+// File Watcher on window focus (detect external file changes on disk)
+window.addEventListener('focus', async () => {
+    if (!isNativeApp()) return;
+    const curTab = (state.activeTabIndex >= 0 && state.tabs && state.tabs[state.activeTabIndex]) ? state.tabs[state.activeTabIndex] : null;
+    if (!curTab || !curTab.filePath || !curTab.fileLastModified) return;
+
+    const diskMtime = await nativeGetFileModifiedTime(curTab.filePath);
+    if (diskMtime && diskMtime > curTab.fileLastModified + 2000) {
+        curTab.fileLastModified = diskMtime;
+        const fileName = curTab.fileName || 'archivo';
+        const promptMsg = (t('msg_file_modified_disk') || "El archivo '{file}' ha sido modificado externamente por otro programa. ¿Desea recargarlo desde el disco?")
+            .replace('{file}', fileName);
+        const reloadConfirmed = await showConfirm(
+            t('dlg_reload_file_title') || 'Archivo modificado externamente',
+            promptMsg
+        );
+        if (reloadConfirmed) {
+            try {
+                const fileBytes = await nativeReadFile(curTab.filePath);
+                if (!fileBytes || fileBytes.length < 16) return;
+                const buf = fileBytes.buffer.slice(fileBytes.byteOffset, fileBytes.byteOffset + fileBytes.byteLength);
+                const tmp = TmpTsFile.parse(buf);
+                loadTmpData(tmp, fileName);
+                curTab.fileLastModified = await nativeGetFileModifiedTime(curTab.filePath);
+                curTab.hasChanges = false;
+                state.hasChanges = false;
+                if (window.renderTabs) window.renderTabs();
+            } catch (err) {
+                console.error('[File Watcher] Failed to reload file:', err);
+            }
+        }
+    }
+});
+
 document.addEventListener('drop', async (e) => {
     e.preventDefault();
     dragCounter = 0;
     hidesDrop();
     
-    const items = Array.from(e.dataTransfer.items || []);
-    const files = Array.from(e.dataTransfer.files || []);
+    const files = Array.from(e.dataTransfer?.files || []);
     if (files.length === 0) return;
+
+    const items = Array.from(e.dataTransfer?.items || []);
 
     // Capture file system handles IMMEDIATELY before any async operations detach DataTransferItems
     const fileHandles = await Promise.all(
@@ -1898,7 +2250,20 @@ document.addEventListener('drop', async (e) => {
         })
     );
 
-    await openFilesBatch(files, fileHandles);
+    let filePaths = files.map(f => f.path || null);
+    if (isNativeApp()) {
+        try {
+            const lastDir = window._lastNativeDirectory || localStorage.getItem('last_native_directory') || null;
+            const resolved = await nativeResolveDroppedFiles(files, lastDir);
+            if (Array.isArray(resolved) && resolved.length === files.length) {
+                filePaths = resolved.map((p, idx) => p || filePaths[idx] || null);
+            }
+        } catch (err) {
+            console.warn('[Drop] Failed to resolve dropped files:', err);
+        }
+    }
+    await openFilesBatch(files, fileHandles, filePaths);
 });
+
 
 

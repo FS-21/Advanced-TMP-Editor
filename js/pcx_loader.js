@@ -19,6 +19,9 @@ export class PcxLoader {
      * Quickly extract width and height from the PCX header (bytes 4-11)
      */
     static getDimensions(buffer) {
+        if (buffer && ArrayBuffer.isView(buffer)) {
+            buffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        }
         if (buffer.byteLength < 12) return { width: 0, height: 0 };
         const view = new DataView(buffer);
         const x1 = view.getUint16(4, true);

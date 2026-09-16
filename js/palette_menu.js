@@ -513,7 +513,7 @@ function refreshPalettesMenuDynamic() {
             { id: 'palCnCReloadedSubmenu', container: 'palMenuCnCReloadedContainer', key: 'cncreloaded' }
         ];
 
-        // 0. Explicit check for CnCReloadedMode flag
+        // Explicit check for CnCReloadedMode flag
         const crContainer = document.getElementById('palMenuCnCReloadedContainer');
         if (crContainer) {
             if (window.CnCReloadedMode === false) {

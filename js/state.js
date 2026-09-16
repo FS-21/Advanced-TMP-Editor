@@ -7,6 +7,8 @@ export class Tab {
         this.idName = fileName || ``;
         this.isNewProject = false;
         this.fileHandle = null; // Stores Native File System handle for direct save
+        this.filePath = null; // Stores native OS absolute path for Tauri desktop direct save
+        this.fileLastModified = 0; // Timestamp for external file change detection
 
         this.palette = initialState ? JSON.parse(JSON.stringify(initialState.palette)) : Array.from({ length: 256 }, () => null);
         this.tmpData = null; 
@@ -123,6 +125,8 @@ export const state = {
     hasChanges: false,
     hasMismatches: false,
     fileHandle: null, // Current active file handle
+    filePath: null, // Current active native file path
+    fileLastModified: 0,
     savedHistoryPtr: -1, // Track which history point is the 'saved' one
     _isRestoringHistory: false,
     paletteSelectedManually: false,
@@ -134,21 +138,38 @@ export const state = {
 
     saveToTab(tab) {
         if (!tab) return;
+        const ignoredKeys = [
+            'id', 'fileName', 'idName', 'internalClipboard', 'hasSystemImage', 'fileHandle', 'filePath', 'fileLastModified'
+        ];
         const keys = Object.keys(new Tab('dummy'));
         keys.forEach(k => {
-            if (['id', 'fileName', 'idName', 'internalClipboard', 'hasSystemImage'].includes(k)) return;
+            if (ignoredKeys.includes(k)) return;
             tab[k] = this[k];
         });
+        if (this.fileHandle !== undefined && this.fileHandle !== null) tab.fileHandle = this.fileHandle;
+        if (this.filePath !== undefined && this.filePath !== null) tab.filePath = this.filePath;
+        if (this.fileLastModified !== undefined && this.fileLastModified !== 0) tab.fileLastModified = this.fileLastModified;
+        if (tab.filePath || tab.fileHandle || this.filePath || this.fileHandle) {
+            tab.isNewProject = false;
+        }
     },
 
     loadFromTab(tab) {
         if (!tab) return;
-        const dummy = new Tab('dummy');
-        const keys = Object.keys(dummy);
+        const ignoredKeys = [
+            'id', 'fileName', 'idName', 'internalClipboard', 'hasSystemImage', 'fileHandle', 'filePath', 'fileLastModified'
+        ];
+        const keys = Object.keys(new Tab('dummy'));
         keys.forEach(k => {
-            if (['id', 'fileName', 'idName', 'internalClipboard', 'hasSystemImage'].includes(k)) return;
+            if (ignoredKeys.includes(k)) return;
             this[k] = tab[k];
         });
+        this.fileHandle = tab.fileHandle || null;
+        this.filePath = tab.filePath || null;
+        this.fileLastModified = tab.fileLastModified || 0;
+        window._lastTmpFileHandle = tab.fileHandle || null;
+        window._lastTmpFilePath = tab.filePath || null;
+        window._lastTmpFilename = tab.fileName || null;
     }
 };
 

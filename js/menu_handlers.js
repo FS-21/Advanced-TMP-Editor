@@ -11,7 +11,7 @@ import {
     updatePixelGrid, renderTileThumbnail, setupTooltips,
     recomputeWorldBoundsFromState, updateTileProperties, showPasteNotification
 } from './ui.js';
-import { openNewTmpDialog, openOpenTmpDialog, updateUIState } from './main.js';
+import { openNewTmpDialog, openOpenTmpDialog, updateUIState, openNativePaths } from './main.js';
 import { handleExportTmp, loadTmpData, handleSaveTmp, handleSaveAll } from './file_io.js';
 import { resetImportState, syncImporterPalette } from './import_tmp.js';
 import { TmpTsFile } from './tmp_format.js';
@@ -24,6 +24,7 @@ import { deselect, deleteSelection, fillSelection } from './tools.js';
 import { renderPaletteSimple } from './ui.js';
 import { createNewTab } from './tabs.js';
 import { PREDEFINED_ZDATA } from './predefined_zdata.js';
+import { isNativeApp, nativeReadFile, nativeGetFileModifiedTime, nativeOpenFileDialog } from './native_bridge.js';
 
 
 
@@ -355,7 +356,10 @@ let _lastProbeTime = 0;
 
 /** Tries to detect clipboard content type asynchronously to enable/disable paste sub-options */
 async function _probeClipboard() {
-    // 1. Check early exits: already probing or within 5s cooling period
+    if (isNativeApp()) {
+        state.hasSystemImage = true;
+        return;
+    }
     if (_isProbing) return;
     const now = Date.now();
     if (now - _lastProbeTime < 5000) return;
@@ -421,9 +425,34 @@ function setupFileMenu() {
     // Open
     const menuOpen = document.getElementById('menuOpen');
     if (menuOpen) {
-        menuOpen.onclick = () => {
+        menuOpen.onclick = async () => {
             closeAllMenus();
-            openOpenTmpDialog();
+            if (isNativeApp()) {
+                try {
+                    const filters = [
+                        { name: 'All Westwood TMP Files (*.tem, *.sno, *.urb, *.des, *.lun, *.ubn)', extensions: ['tem', 'sno', 'urb', 'des', 'lun', 'ubn'] },
+                        { name: 'Temperate TMP (*.tem)', extensions: ['tem'] },
+                        { name: 'Snow TMP (*.sno)', extensions: ['sno'] },
+                        { name: 'Urban TMP (*.urb)', extensions: ['urb'] },
+                        { name: 'Desert TMP (*.des)', extensions: ['des'] },
+                        { name: 'Lunar TMP (*.lun)', extensions: ['lun'] },
+                        { name: 'New Urban TMP (*.ubn)', extensions: ['ubn'] },
+                        { name: 'All Files (*.*)', extensions: ['*'] }
+                    ];
+                    const paths = await nativeOpenFileDialog({
+                        title: 'Open Westwood TMP File',
+                        filters,
+                        multiple: true
+                    });
+                    if (paths && paths.length > 0) {
+                        await openNativePaths(paths);
+                    }
+                } catch (err) {
+                    console.error('[Menu Open] Error opening file:', err);
+                }
+            } else {
+                openOpenTmpDialog();
+            }
         };
     }
     // Save
@@ -967,17 +996,48 @@ async function clearRecentFiles() {
     }
 }
 
+export async function getRecentFilePathByName(name) {
+    if (!name) return null;
+    try {
+        const db = await openRecentDB();
+        const tx = db.transaction(RECENT_STORE, 'readonly');
+        const store = tx.objectStore(RECENT_STORE);
+        const allItems = await new Promise((resolve, reject) => {
+            const req = store.getAll();
+            req.onsuccess = () => resolve(req.result || []);
+            req.onerror = () => reject(req.error);
+        });
+        const target = name.toLowerCase();
+        const match = allItems.find(item => item.name && (item.name === name || item.name.toLowerCase() === target));
+        if (match && typeof match.handle === 'string') {
+            return match.handle;
+        }
+    } catch (e) {
+        console.warn('[Recent Files] getRecentFilePathByName error:', e);
+    }
+    return null;
+}
+window.getRecentFilePathByName = getRecentFilePathByName;
+
 async function openRecentFile(handle, paletteId, openInNewTab = false) {
     try {
-        // Request permission
-        const perm = await handle.requestPermission({ mode: 'read' });
-        if (perm !== 'granted') {
-            console.warn('[Recent Files] Permission denied');
-            return;
-        }
+        let buf, fileName;
+        if (typeof handle === 'string') {
+            const u8 = await nativeReadFile(handle);
+            buf = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+            fileName = handle.split(/[/\\]/).pop();
+        } else {
+            // Request permission
+            const perm = await handle.requestPermission({ mode: 'read' });
+            if (perm !== 'granted') {
+                console.warn('[Recent Files] Permission denied');
+                return;
+            }
 
-        const file = await handle.getFile();
-        const buf = await file.arrayBuffer();
+            const file = await handle.getFile();
+            buf = await file.arrayBuffer();
+            fileName = file.name;
+        }
 
         if (openInNewTab) {
             // If there is a single empty tab, ignore the new-tab request and
@@ -991,7 +1051,7 @@ async function openRecentFile(handle, paletteId, openInNewTab = false) {
             }
         }
 
-        const ext = file.name.split('.').pop().toLowerCase();
+        const ext = fileName.split('.').pop().toLowerCase();
         const validExts = ['tem', 'sno', 'urb', 'des', 'ubn', 'lun', 'tmp'];
         if (validExts.includes(ext)) {
             if (!openInNewTab && state.hasChanges && state.tmpData) {
@@ -1012,22 +1072,50 @@ async function openRecentFile(handle, paletteId, openInNewTab = false) {
             }
 
             const tmp = TmpTsFile.parse(buf);
-            loadTmpData(tmp, file.name);
+            loadTmpData(tmp, fileName);
             
-            // 2.5 Update Tab Name
+            let mtime = 0;
+            if (typeof handle === 'string') {
+                mtime = await nativeGetFileModifiedTime(handle);
+            }
+
+            if (typeof handle === 'string') {
+                state.filePath = handle;
+                state.fileHandle = null;
+                state.fileLastModified = mtime;
+                window._lastTmpFilePath = handle;
+                window._lastTmpFileHandle = null;
+            } else {
+                state.fileHandle = handle;
+                state.filePath = null;
+                window._lastTmpFileHandle = handle;
+                window._lastTmpFilePath = null;
+            }
+
+            if (state.activeTabIndex >= 0 && state.tabs[state.activeTabIndex]) {
+                const curTab = state.tabs[state.activeTabIndex];
+                curTab.isNewProject = false;
+                if (typeof handle === 'string') {
+                    curTab.filePath = handle;
+                    curTab.fileHandle = null;
+                    curTab.fileLastModified = mtime;
+                } else {
+                    curTab.fileHandle = handle;
+                    curTab.filePath = null;
+                }
+            }
+            
+            // Update Tab Name
             if (window.updateCurrentTabName) {
-                window.updateCurrentTabName(file.name);
+                window.updateCurrentTabName(fileName, false);
             }
 
             // Force clean state after all initialization triggers
             state.hasChanges = false;
             if (window.renderTabs) window.renderTabs();
 
-            // Store handle for Save functionality
-            window._lastTmpFileHandle = handle;
-
             // Save updated timestamp
-            saveRecentFile(file.name, handle);
+            saveRecentFile(fileName, handle);
 
             if (typeof window.updateUIState === 'function') window.updateUIState();
             closeAllMenus();
@@ -1866,7 +1954,7 @@ export async function checkDesktopCliFile() {
         const file = new File([u8], filename);
 
         if (typeof window.processSystemFileOpen === 'function') {
-            await window.processSystemFileOpen(file);
+            await window.processSystemFileOpen(file, null, filePath);
         }
     } catch (e) {
         console.warn('[Desktop] Could not load startup file:', e);

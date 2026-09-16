@@ -37,6 +37,7 @@ JS_ORDER = [
     'constants.js',
     'ramp_types.js',
     'state.js',
+    'native_bridge.js',
     'translations.js',
     'tmp_format.js',
     'history.js',

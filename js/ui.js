@@ -7,6 +7,7 @@ import { bresenham, findNearestPaletteIndex, setupAutoRepeat } from './utils.js'
 import { updateUIState } from './main.js';
 import { TmpTsFile } from './tmp_format.js';
 import { t } from './translations.js';
+import { isNativeApp, nativeWriteClipboardImage, nativeReadClipboardImage, nativeWriteClipboardText, nativeReadClipboardText } from './native_bridge.js';
 
 let _worldCanvas = null;
 let _worldBounds = { minX: 0, minY: 0, width: 0, height: 0 };
@@ -3334,7 +3335,9 @@ export async function copySelectedTiles(mode = 'full') {
 
             const validInternalModes = ['full', 'only_cell', 'only_extra', 'img_merged', 'img_cell', 'img_extra', 'z_merged', 'z_cell', 'z_extra', 'place_merged'];
             if (validInternalModes.includes(mode)) {
-                if (navigator.clipboard && navigator.clipboard.writeText) {
+                if (isNativeApp()) {
+                    await nativeWriteClipboardText('__TMP_TILES_DATA__');
+                } else if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText('__TMP_TILES_DATA__').catch(() => {});
                 }
             }
@@ -3349,6 +3352,16 @@ export async function copySelectedTiles(mode = 'full') {
         try {
             const canvas = await generateImageFromSelection(mode);
             if (!canvas) return;
+
+            if (isNativeApp()) {
+                const ctx = canvas.getContext('2d');
+                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const ok = await nativeWriteClipboardImage(canvas.width, canvas.height, imgData.data);
+                if (ok) {
+                    console.log(`[Clipboard] Successfully copied ${mode} (${canvas.width}x${canvas.height}) to system clipboard via native bridge.`);
+                    return;
+                }
+            }
 
             const isFileProtocol = window.location.protocol === 'file:';
 
@@ -3621,10 +3634,23 @@ export async function pasteTiles(isForced = false, mode = 'full', forceInternalR
             pasteTilesAtEnd(mode);
         }
     } 
-    // 2. Image/Z-Mask Mode (System Clipboard)
+    // Image/Z-Mask Mode (System Clipboard)
     else {
         console.log(`  - Routing: SYSTEM CLIPBOARD (Image) Path.`);
-        console.warn(`[DEBUG OMEGA] --- PASTE DECISION ROUTING SYSTEM CLIPBOARD ---`);
+        if (isNativeApp()) {
+            const nativeImg = await nativeReadClipboardImage();
+            if (nativeImg && nativeImg.width && nativeImg.height && nativeImg.rgba) {
+                if (window.processSystemImagePaste) {
+                    const imgData = new ImageData(nativeImg.rgba, nativeImg.width, nativeImg.height);
+                    window.processSystemImagePaste(imgData, mode, isForced);
+                    return;
+                }
+            } else {
+                showPasteNotification(t('msg_paste_warning_ctrlv') || "No image found in clipboard", "warning", 3000);
+                return;
+            }
+        }
+
         try {
             // Check fallback for Firefox/Chrome blocking clipboard read without explicit interaction
             const items = await navigator.clipboard.read();
@@ -5944,6 +5970,14 @@ export async function exportToSystemClipboard(indices, width, height) {
             imageData.data[offset + 3] = (paletteIdx === TRANSPARENT_COLOR) ? 0 : 255;
         }
         ctx.putImageData(imageData, 0, 0);
+
+        if (isNativeApp()) {
+            const ok = await nativeWriteClipboardImage(width, height, imageData.data);
+            if (ok) {
+                console.log('Image copied directly to OS clipboard via native bridge.');
+                return;
+            }
+        }
         
         // Convert canvas to blob and write to clipboard using the robust Promise pattern
         try {

@@ -1543,6 +1543,36 @@ canvas {
     animation: slideDown 0.3s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
+.notification-bar.warning {
+    background: linear-gradient(to right, #4a3b05, #6a5500);
+    border-bottom: 2px solid #a28a00;
+    color: #fff9da;
+}
+
+.notification-bar.warning .close-btn {
+    color: #ffd24d;
+}
+
+.notification-bar.success {
+    background: linear-gradient(to right, #054a2a, #006a3a);
+    border-bottom: 2px solid #00a860;
+    color: #dafff0;
+}
+
+.notification-bar.success .close-btn {
+    color: #5effa8;
+}
+
+.notification-bar.info {
+    background: linear-gradient(to right, #052a4a, #003a6a);
+    border-bottom: 2px solid #0070a8;
+    color: #daeeff;
+}
+
+.notification-bar.info .close-btn {
+    color: #5ebdff;
+}
+
 .notification-bar.active {
     display: flex;
 }

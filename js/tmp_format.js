@@ -6,6 +6,18 @@
 export class TmpTsFile {
     // Parse TMP file from ArrayBuffer
     static parse(buffer) {
+        if (!buffer) {
+            throw new Error("El archivo TMP está vacío o no es válido");
+        }
+        if (ArrayBuffer.isView(buffer)) {
+            buffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        }
+        if (!(buffer instanceof ArrayBuffer)) {
+            throw new Error("El formato del búfer no es compatible");
+        }
+        if (buffer.byteLength < 16) {
+            throw new Error("El archivo TMP es demasiado pequeño o está dañado");
+        }
         const dv = new DataView(buffer);
         const u8 = new Uint8Array(buffer);
         
@@ -16,9 +28,23 @@ export class TmpTsFile {
             cx: dv.getInt32(8, true),          // Tile width (60 or 48)
             cy: dv.getInt32(12, true)          // Tile height (30 or 24)
         };
+
+        // Header validation: cx must be 48 or 60, cy must be 24 or 30
+        if ((header.cx !== 48 && header.cx !== 60) || (header.cy !== 24 && header.cy !== 30)) {
+            throw new Error(`Dimensiones de tesela no válidas: ${header.cx}x${header.cy}. Se esperaba 48x24 o 60x30.`);
+        }
+        if (header.cblocks_x <= 0 || header.cblocks_x > 512 || header.cblocks_y <= 0 || header.cblocks_y > 512) {
+            throw new Error(`Dimensiones de cuadrícula TMP no válidas: ${header.cblocks_x}x${header.cblocks_y}`);
+        }
         
         const numTiles = header.cblocks_x * header.cblocks_y;
+        if (numTiles <= 0 || numTiles > 65536) {
+            throw new Error(`Número de teselas no válido: ${numTiles}`);
+        }
         const tileIndexOffset = 16;
+        if (tileIndexOffset + numTiles * 4 > dv.byteLength) {
+            throw new Error(`Archivo TMP truncado: la tabla de teselas excede el tamaño del archivo`);
+        }
         
         // Read tile index (array of offsets)
         const tileIndex = [];
@@ -38,10 +64,10 @@ export class TmpTsFile {
         // Parse each tile
         const tiles = [];
         for (let i = 0; i < numTiles; i++) {
-            if (tileIndex[i] === 0) {
+            const tileOffset = tileIndex[i];
+            if (tileOffset <= 0 || tileOffset + 52 > dv.byteLength) {
                 tiles.push(null);
             } else {
-                const tileOffset = tileIndex[i];
                 const tileData = TmpTsFile.parseTile(u8, dv, tileOffset, header.cx, header.cy, i);
                 tiles.push(tileData);
             }
@@ -57,6 +83,9 @@ export class TmpTsFile {
     
     // Parse individual tile at given offset
     static parseTile(u8, dv, offset, cx, cy, slot) {
+        if (offset < 0 || offset + 52 > dv.byteLength) {
+            return null;
+        }
         const diamondSize = (cx * cy) / 2;
         
         const imageHeader = {
@@ -71,8 +100,8 @@ export class TmpTsFile {
             cy_extra: dv.getInt32(offset + 32, true)
         };
         
-        // Authoritative Westwood IsoTileRecord offsets (OpenTS isotype.h / isotype.cpp):
-        // 0..35:  int X, Y, ExtraOffset, ZDataOffset, ExtraZOffset, ExtraX, ExtraY, ExtraWidth, ExtraHeight
+        // Westwood IsoTileRecord binary layout:
+        // Bytes 0 to 35: int X, Y, ExtraOffset, ZDataOffset, ExtraZOffset, ExtraX, ExtraY, ExtraWidth, ExtraHeight
         // 36..39: unsigned int flags: bit 0=IsHasExtraData, bit 1=IsHasZData, bit 2=IsRandomized
         // 40:     unsigned char Height (elevation level)
         // 41:     signed char TileType (LandType control color 0..15)
@@ -110,31 +139,24 @@ export class TmpTsFile {
         
         let currentEnd = dataOffset + diamondSize;
 
-        // In OpenTS, ZDataOffset is byte offset from start of record (offset + z_ofs)
+        // ZDataOffset is typically the relative byte offset from the start of the tile record (offset + z_ofs)
         if (imageHeader.has_z_data) {
-            const zStart = (imageHeader.z_ofs > offset) 
-                ? imageHeader.z_ofs 
-                : (imageHeader.z_ofs > 0 ? offset + imageHeader.z_ofs : currentEnd);
+            const zStart = imageHeader.z_ofs > 0 ? (offset + imageHeader.z_ofs) : currentEnd;
             zData = new Uint8Array(u8.slice(zStart, zStart + diamondSize));
             if (imageHeader.z_ofs === 0) currentEnd += diamondSize;
         }
 
-        // NOTE: In authentic Westwood TMP format (OpenTS), bit 2 is IsRandomized.
-        // There is NO binary "damagedData" payload block in TMP files.
+        // Bit 2 typically denotes IsRandomized / tile variation rather than separate payload data.
         
         if (imageHeader.has_extra_data) {
             const extraSize = imageHeader.cx_extra * imageHeader.cy_extra;
             if (extraSize > 0) {
-                const extraStart = (imageHeader.extra_ofs > offset) 
-                    ? imageHeader.extra_ofs 
-                    : (imageHeader.extra_ofs > 0 ? offset + imageHeader.extra_ofs : currentEnd);
+                const extraStart = imageHeader.extra_ofs > 0 ? (offset + imageHeader.extra_ofs) : currentEnd;
                 extraImageData = new Uint8Array(u8.slice(extraStart, extraStart + extraSize));
                 if (imageHeader.extra_ofs === 0) currentEnd += extraSize;
                 
                 if (imageHeader.has_z_data) {
-                    const extraZStart = (imageHeader.extra_z_ofs > offset) 
-                        ? imageHeader.extra_z_ofs 
-                        : (imageHeader.extra_z_ofs > 0 ? offset + imageHeader.extra_z_ofs : currentEnd);
+                    const extraZStart = imageHeader.extra_z_ofs > 0 ? (offset + imageHeader.extra_z_ofs) : currentEnd;
                     extraZData = new Uint8Array(u8.slice(extraZStart, extraZStart + extraSize));
                     if (imageHeader.extra_z_ofs === 0) currentEnd += extraSize;
                 }
@@ -297,7 +319,7 @@ export class TmpTsFile {
             
             let cursor = 52 + cbDiamond;
             
-            // Base Z-Data (OpenTS ZDataOffset: relative to record start)
+            // Base Z-Data (ZDataOffset: relative to record start)
             if (hasZ) { 
                 dv.setInt32(12, cursor, true); 
                 u8.set(tile.zData, cursor); 
@@ -306,13 +328,13 @@ export class TmpTsFile {
                 dv.setInt32(12, 0, true);
             }
             
-            // Extra Image Data (OpenTS ExtraOffset: relative to record start)
+            // Extra Image Data (ExtraOffset: relative to record start)
             if (hasExtra) {
                 dv.setInt32(8, cursor, true); 
                 u8.set(tile.extraImageData, cursor); 
                 cursor += cbExtraSize;
                 
-                // Extra Z-Data (OpenTS ExtraZOffset: relative to record start)
+                // Extra Z-Data (ExtraZOffset: relative to record start)
                 if (hasZ && tile.extraZData) { 
                     dv.setInt32(16, cursor, true); 
                     u8.set(tile.extraZData, cursor); 

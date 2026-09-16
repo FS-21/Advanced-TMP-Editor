@@ -153,6 +153,13 @@ function duplicateTabAt(index) {
     // Deep clone using structuredClone (handles Sets, TypedArrays, etc.)
     const clone = structuredClone(source);
     clone.id = generateId();
+    clone.fileName = null;
+    clone.fileHandle = null;
+    clone.filePath = null;
+    clone.fileLastModified = 0;
+    clone.hasChanges = true;
+    clone.isNewProject = true;
+    clone.idName = source.idName ? `${source.idName} (Copy)` : `New File ${++state.newFileCounter}`;
     
     state.tabs.splice(index + 1, 0, clone);
     switchTab(index + 1);
@@ -239,6 +246,14 @@ export function switchTab(index) {
     const newTab = state.tabs[index];
     state.loadFromTab(newTab);
 
+    // Synchronize file handles and filenames with active tab
+    state.fileHandle = newTab.fileHandle || null;
+    state.filePath = newTab.filePath || null;
+    state.fileLastModified = newTab.fileLastModified || 0;
+    window._lastTmpFileHandle = newTab.fileHandle || null;
+    window._lastTmpFilePath = newTab.filePath || null;
+    window._lastTmpFilename = newTab.fileName || null;
+
     // UI Refresh
     renderTabs();
     updateUIState();
@@ -266,6 +281,8 @@ function resetToCleanDefaultTab(preservePaletteFromTab = null) {
     cleanTab.tmpData = null;
     cleanTab.tiles = [];
     cleanTab.fileHandle = null;
+    cleanTab.filePath = null;
+    cleanTab.fileLastModified = 0;
     cleanTab.history = [];
     cleanTab.historyPtr = -1;
     cleanTab.savedHistoryPtr = -1;
@@ -275,6 +292,11 @@ function resetToCleanDefaultTab(preservePaletteFromTab = null) {
 
     // Reset global state explicitly
     state.fileHandle = null;
+    state.filePath = null;
+    state.fileLastModified = 0;
+    window._lastTmpFileHandle = null;
+    window._lastTmpFilePath = null;
+    window._lastTmpFilename = null;
     state.tmpData = null;
     state.tiles = [];
     state.currentTileIdx = -1;
@@ -420,7 +442,7 @@ export function updateCurrentTabName(name, isNewProject = false) {
         const tab = state.tabs[state.activeTabIndex];
         tab.fileName = name;
         tab.idName = name;
-        tab.isNewProject = isNewProject;
+        tab.isNewProject = (tab.filePath || tab.fileHandle || state.filePath || state.fileHandle) ? false : isNewProject;
         tab.hasChanges = false;
         
         // Ensure tab object is in sync with global state after project assignment
