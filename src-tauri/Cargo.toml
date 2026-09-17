@@ -1,6 +1,6 @@
 [package]
 name = "advanced-tmp-editor"
-version = "2.1.0"
+version = "2.1.1"
 description = "Advanced TMP Tile Set Editor for Tiberian Sun & Red Alert 2"
 authors = ["FS-21"]
 license = "LGPL-3.0-or-later"
