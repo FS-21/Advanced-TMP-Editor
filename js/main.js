@@ -34,7 +34,7 @@ import { redo, undo, pushHistory, resetHistoryForFreshOpen } from './history.js'
 import { t, initLanguageSelector } from './translations.js';
 import { initImportTmp, initExportTmp, loadTmpData, parsePaletteBuffer, handleSaveTmp, handleExportTmp, handleSaveAll } from './file_io.js';
 import { setupColorShiftUIListeners } from './tools.js';
-import { initTabs, updateCurrentTabName, createNewTab, closeTab, switchTab } from './tabs.js';
+import { initTabs, updateCurrentTabName, createNewTab, closeTab, switchTab, createBackgroundTabForFile, renderTabs } from './tabs.js';
 import { TmpTsFile } from './tmp_format.js';
 import { getActivePaletteId, getLib, findNodeById, updatePaletteSelectorUI, base64ToBuffer, setActivePaletteId } from './palette_menu.js';
 import { isNativeApp, nativeReadFile, nativeGetCliArgs, nativeListenEvent, nativeExitApp, nativeReadClipboardImage, nativeOpenUrl, nativeGetFileModifiedTime, nativeResolveDroppedFiles } from './native_bridge.js';
@@ -2015,36 +2015,15 @@ export async function openFilesBatch(files, fileHandles = [], filePaths = []) {
     const curTab = (state.activeTabIndex >= 0 && state.tabs[state.activeTabIndex]) ? state.tabs[state.activeTabIndex] : null;
     const isCurrentTabEmpty = curTab && (!state.tiles || state.tiles.length === 0) && !state.hasChanges && !curTab.fileName && !curTab.isNewProject;
 
-    let firstOpenedTabIndex = -1;
-
-    for (let i = 0; i < validEntries.length; i++) {
-        const { file, handle, filePath, tmpData } = validEntries[i];
-        const currentNum = i + 1;
+    if (validEntries.length === 1) {
+        const { file, handle, filePath, tmpData } = validEntries[0];
         const fn = filePath ? filePath.split(/[/\\]/).pop() : (handle ? handle.name : file.name);
-
-        if (isBatch && batchDialog) {
-            // Processing phase: 50% to 100%
-            const pct = Math.round(50 + (currentNum / validEntries.length) * 50);
-            if (batchCount) batchCount.textContent = `${currentNum} / ${validEntries.length}`;
-            if (batchProgressFill) batchProgressFill.style.width = `${pct}%`;
-            if (batchPercent) batchPercent.textContent = `${pct}%`;
-            if (batchCurrentFile) {
-                batchCurrentFile.textContent = (t('lbl_batch_loading_file') || 'Opening {current} of {total}: {filename}')
-                    .replace('{current}', String(currentNum))
-                    .replace('{total}', String(validEntries.length))
-                    .replace('{filename}', file.name);
-            }
-            // CRITICAL: Yield to browser event loop so it paints frame and keeps UI fully responsive!
-            await new Promise(resolve => setTimeout(resolve, 0));
-        }
-
         let mtime = 0;
         if (filePath) {
             mtime = await nativeGetFileModifiedTime(filePath);
         }
 
-        if (i === 0 && isCurrentTabEmpty) {
-            // First file reuses the current empty tab
+        if (isCurrentTabEmpty) {
             curTab.isNewProject = false;
             if (filePath) {
                 curTab.filePath = filePath;
@@ -2072,9 +2051,7 @@ export async function openFilesBatch(files, fileHandles = [], filePaths = []) {
             if (typeof saveRecentFile === 'function') {
                 saveRecentFile(fn, filePath || handle);
             }
-            firstOpenedTabIndex = state.activeTabIndex;
         } else {
-            // Open in a new tab
             const newTab = createNewTab();
             if (newTab) {
                 newTab.isNewProject = false;
@@ -2105,16 +2082,82 @@ export async function openFilesBatch(files, fileHandles = [], filePaths = []) {
             if (typeof saveRecentFile === 'function') {
                 saveRecentFile(fn, filePath || handle);
             }
-            if (firstOpenedTabIndex === -1) {
-                firstOpenedTabIndex = state.activeTabIndex;
+        }
+        return;
+    }
+
+    // MULTIPLE FILES (> 1 file): Keep current active tab!
+    let startIndex = 0;
+    if (isCurrentTabEmpty) {
+        const { file, handle, filePath, tmpData } = validEntries[0];
+        const fn = filePath ? filePath.split(/[/\\]/).pop() : (handle ? handle.name : file.name);
+        let mtime = 0;
+        if (filePath) {
+            mtime = await nativeGetFileModifiedTime(filePath);
+        }
+        curTab.isNewProject = false;
+        if (filePath) {
+            curTab.filePath = filePath;
+            curTab.fileHandle = null;
+            curTab.fileLastModified = mtime;
+            state.filePath = filePath;
+            state.fileHandle = null;
+            state.fileLastModified = mtime;
+            window._lastTmpFilePath = filePath;
+            window._lastTmpFileHandle = null;
+        } else if (handle) {
+            curTab.fileHandle = handle;
+            curTab.filePath = null;
+            state.fileHandle = handle;
+            state.filePath = null;
+            window._lastTmpFileHandle = handle;
+            window._lastTmpFilePath = null;
+        }
+        if (filePath && tmpData) tmpData.filePath = filePath;
+        loadTmpData(tmpData, fn);
+        if (filePath && state.tmpData) state.tmpData.filePath = filePath;
+        updateCurrentTabName(fn, false);
+        state.savedHistoryPtr = state.historyPtr;
+        state.hasChanges = false;
+        if (typeof saveRecentFile === 'function') {
+            saveRecentFile(fn, filePath || handle);
+        }
+        startIndex = 1;
+    }
+
+    for (let i = startIndex; i < validEntries.length; i++) {
+        const entry = validEntries[i];
+        const { file, handle, filePath, tmpData } = entry;
+        const currentNum = i + 1;
+        const fn = filePath ? filePath.split(/[/\\]/).pop() : (handle ? handle.name : file.name);
+
+        if (isBatch && batchDialog) {
+            const pct = Math.round(50 + (currentNum / validEntries.length) * 50);
+            if (batchCount) batchCount.textContent = `${currentNum} / ${validEntries.length}`;
+            if (batchProgressFill) batchProgressFill.style.width = `${pct}%`;
+            if (batchPercent) batchPercent.textContent = `${pct}%`;
+            if (batchCurrentFile) {
+                batchCurrentFile.textContent = (t('lbl_batch_loading_file') || 'Opening {current} of {total}: {filename}')
+                    .replace('{current}', String(currentNum))
+                    .replace('{total}', String(validEntries.length))
+                    .replace('{filename}', file.name);
             }
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+
+        let mtime = 0;
+        if (filePath) {
+            mtime = await nativeGetFileModifiedTime(filePath);
+        }
+
+        const bgTab = createBackgroundTabForFile({ file, handle, filePath, tmpData, mtime });
+        state.tabs.push(bgTab);
+        if (typeof saveRecentFile === 'function') {
+            saveRecentFile(fn, filePath || handle);
         }
     }
 
-    // Switch to the first loaded file so the user sees the first tab
-    if (firstOpenedTabIndex >= 0 && firstOpenedTabIndex !== state.activeTabIndex) {
-        switchTab(firstOpenedTabIndex);
-    }
+    renderTabs();
 
     if (isBatch && batchDialog) {
         if (batchProgressFill) batchProgressFill.style.width = '100%';

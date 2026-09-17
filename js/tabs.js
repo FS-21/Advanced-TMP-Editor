@@ -4,7 +4,7 @@ let currentContextTabIndex = -1;
 import { state, Tab, generateId } from './state.js';
 import { updateUIState } from './main.js';
 import { renderCanvas, updateTilesList, renderPalette, updateCanvasSize, renderOverlay, showConfirm, showChoice } from './ui.js';
-import { handleSaveTmp, handleSaveAll } from './file_io.js';
+import { handleSaveTmp, handleSaveAll, populateTabWithTmpData } from './file_io.js';
 import { renderHistory } from './history.js';
 import { t } from './translations.js';
 
@@ -103,20 +103,10 @@ export function initTabs() {
     
     new ResizeObserver(updateScrollButtons).observe(tabsContainer);
     
-    // Wheel to NAVIGATE between tabs as requested
+    // Wheel to scroll tabs horizontally
     tabsContainer.addEventListener('wheel', (e) => {
         e.preventDefault();
-        if (e.deltaY > 0) {
-            // Scroll down/right -> Next tab
-            if (state.activeTabIndex < state.tabs.length - 1) {
-                switchTab(state.activeTabIndex + 1);
-            }
-        } else if (e.deltaY < 0) {
-            // Scroll up/left -> Previous tab
-            if (state.activeTabIndex > 0) {
-                switchTab(state.activeTabIndex - 1);
-            }
-        }
+        tabsContainer.scrollLeft += e.deltaY;
     }, { passive: false });
 
     // Component initialization
@@ -131,7 +121,27 @@ export function createNewTab(fileName = null) {
     return createNewTabAt(state.tabs.length, fileName);
 }
 
-function createNewTabAt(index, fileName = null) {
+export function createBackgroundTabForFile(entry) {
+    const { file, handle, filePath, tmpData, mtime } = entry;
+    const fn = filePath ? filePath.split(/[/\\]/).pop() : (handle ? handle.name : file.name);
+    const tab = new Tab(generateId(), fn, state);
+    tab.idName = fn;
+    tab.fileName = fn;
+    tab.isNewProject = false;
+    tab.filePath = filePath || null;
+    tab.fileHandle = handle || null;
+    tab.fileLastModified = mtime || 0;
+    tab.hasChanges = false;
+    tab.history = [];
+    tab.historyPtr = -1;
+    tab.savedHistoryPtr = -1;
+
+    if (filePath && tmpData) tmpData.filePath = filePath;
+    populateTabWithTmpData(tab, tmpData, fn);
+    return tab;
+}
+
+function createNewTabAt(index, fileName = null, shouldSwitch = true) {
     const id = generateId();
     const name = fileName || "";
     const tab = new Tab(id, fileName, state);
@@ -140,15 +150,30 @@ function createNewTabAt(index, fileName = null) {
     // Truly empty tab by default. Tiles/tmpData are only populated 
     // when a file is loaded or a New TMP project is created via dialog.
     
+    if (shouldSwitch) {
+        if (state._currentLoadedTab) {
+            state.saveToTab(state._currentLoadedTab);
+        } else if (state.activeTabIndex !== -1 && state.tabs[state.activeTabIndex]) {
+            state.saveToTab(state.tabs[state.activeTabIndex]);
+        }
+    }
+
+    if (!shouldSwitch && state.activeTabIndex >= index) {
+        state.activeTabIndex++;
+    }
+
     state.tabs.splice(index, 0, tab);
-    switchTab(index);
+    if (shouldSwitch) {
+        switchTab(index);
+    }
     return tab;
 }
 
 function duplicateTabAt(index) {
     const source = state.tabs[index];
-    // Sync live state if it's the active tab
-    if (index === state.activeTabIndex) state.saveToTab(source);
+    if (index === state.activeTabIndex || state._currentLoadedTab === source) {
+        state.saveToTab(source);
+    }
 
     // Deep clone using structuredClone (handles Sets, TypedArrays, etc.)
     const clone = structuredClone(source);
@@ -161,8 +186,12 @@ function duplicateTabAt(index) {
     clone.isNewProject = true;
     clone.idName = source.idName ? `${source.idName} (Copy)` : `New File ${++state.newFileCounter}`;
     
-    state.tabs.splice(index + 1, 0, clone);
-    switchTab(index + 1);
+    const insertIdx = index + 1;
+    if (state.activeTabIndex >= insertIdx) {
+        state.activeTabIndex++;
+    }
+    state.tabs.splice(insertIdx, 0, clone);
+    switchTab(insertIdx);
 }
 
 async function closeOtherTabs(keptIndex) {
@@ -194,6 +223,7 @@ async function closeOtherTabs(keptIndex) {
                 state.saveToTab(tab);
                 if (previousActive !== idx) {
                     state.activeTabIndex = previousActive;
+                    state.loadFromTab(state.tabs[previousActive]);
                 }
                 if (!saveOk) {
                     console.warn('[closeOtherTabs] Save was cancelled for', tabName);
@@ -208,7 +238,7 @@ async function closeOtherTabs(keptIndex) {
 
     const kept = state.tabs[keptIndex];
     if (state.activeTabIndex >= 0 && state.activeTabIndex < state.tabs.length) {
-        const activeTab = state.tabs[state.activeTabIndex];
+        const activeTab = state._currentLoadedTab || state.tabs[state.activeTabIndex];
         if (activeTab !== kept) {
             state.saveToTab(activeTab);
         }
@@ -237,8 +267,8 @@ export function switchTab(index) {
     if (index < 0 || index >= state.tabs.length) return;
 
     // Persist current state before switching
-    if (state.activeTabIndex !== -1 && state.tabs[state.activeTabIndex]) {
-        const currentTab = state.tabs[state.activeTabIndex];
+    const currentTab = state._currentLoadedTab || (state.activeTabIndex !== -1 ? state.tabs[state.activeTabIndex] : null);
+    if (currentTab && state.tabs[index] !== currentTab) {
         state.saveToTab(currentTab);
     }
 

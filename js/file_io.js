@@ -17,19 +17,105 @@ import { getRecentFilePathByName } from './menu_handlers.js';
 /**
  * Initializes the application state with loaded TMP data
  */
+export function populateTabWithTmpData(tab, tmp, filename = '') {
+    if (!tab || !tmp || !tmp.header) return;
+    tab.tmpData = tmp;
+    if (filename) {
+        tab.tmpData.filename = filename;
+    }
+    tab.cblocks_x = tmp.header.cblocks_x;
+    tab.cblocks_y = tmp.header.cblocks_y;
+    tab.cx = tmp.header.cx;
+    tab.cy = tmp.header.cy;
+    tab.gameType = (tab.cx === 48) ? 'ts' : 'ra2';
+
+    // Calculate World Bounds
+    tab.worldBounds = TmpTsFile.computeBounds(tmp);
+
+    // Create frames for each tile
+    tab.tiles = [];
+    const numTiles = tmp.header.cblocks_x * tmp.header.cblocks_y;
+
+    const mult = tmp.header.cy / 2;
+    for (let i = 0; i < numTiles; i++) {
+        const tile = tmp.tiles[i];
+        if (!tile) {
+            tab.tiles.push({
+                id: generateId(), width: tmp.header.cx, height: tmp.header.cy,
+                data: new Uint8Array(tmp.header.cx * tmp.header.cy).fill(TRANSPARENT_COLOR),
+                tileHeader: null, visible: true, itemMinX: 0, itemMinY: 0, _v: 0
+            });
+            continue;
+        }
+
+        const h = tile.tileHeader;
+        const dx = h.x;
+        const dy = h.y - h.height * mult;
+
+        let minX = dx, minY = dy;
+        let maxX = dx + tmp.header.cx, maxY = dy + tmp.header.cy;
+
+        if (h.has_extra_data && h.cx_extra > 0 && h.cy_extra > 0) {
+            const ex = h.x_extra;
+            const ey = h.y_extra - h.height * mult;
+            minX = Math.min(minX, ex); minY = Math.min(minY, ey);
+            maxX = Math.max(maxX, ex + h.cx_extra); maxY = Math.max(maxY, ey + h.cy_extra);
+        }
+
+        const tw = maxX - minX;
+        const th = maxY - minY;
+
+        tab.tiles.push({
+            id: generateId(),
+            width: tw,
+            height: th,
+            itemMinX: minX,
+            itemMinY: minY,
+            diamondX: dx - minX,
+            diamondY: dy - minY,
+            data: TmpTsFile.decodeTileDiamond(tile.data, tmp.header.cx, tmp.header.cy),
+            zData: tile.zData ? TmpTsFile.decodeTileDiamond(tile.zData, tmp.header.cx, tmp.header.cy) : null,
+            damagedData: null,
+            tileHeader: { ...tile.tileHeader },
+            extraImageData: tile.extraImageData,
+            extraZData: tile.extraZData,
+            extraX: h.has_extra_data ? h.x_extra - minX : 0,
+            extraY: h.has_extra_data ? (h.y_extra - h.height * mult) - minY : 0,
+            visible: true,
+            _v: 0
+        });
+    }
+
+    tab.currentTileIdx = -1;
+    if (tab.tileSelection) tab.tileSelection.clear();
+    tab.history = [];
+    tab.historyPtr = -1;
+    tab.hasChanges = false;
+    tab.savedHistoryPtr = -1;
+    tab.selection = null;
+    tab.floatingSelection = null;
+    if (tab.subSelection) tab.subSelection.clear();
+    tab.currentTileKey = null;
+
+    // Set Canvas to World Dimensions
+    if (tab.worldBounds && tab.worldBounds.hasTiles) {
+        tab.canvasW = Math.ceil(tab.worldBounds.width);
+        tab.canvasH = Math.ceil(tab.worldBounds.height);
+    } else {
+        tab.canvasW = tmp.header.cx;
+        tab.canvasH = tmp.header.cy;
+    }
+}
+
 export function loadTmpData(tmp, filename = '', skipPaletteAutoselect = false) {
     console.time("TMP Initialization");
     
-    state.tmpData = tmp;
-    if (filename) {
-        state.tmpData.filename = filename;
+    populateTabWithTmpData(state, tmp, filename);
+    const activeTab = (state.activeTabIndex >= 0 && state.tabs[state.activeTabIndex]) ? state.tabs[state.activeTabIndex] : null;
+    if (activeTab) {
+        populateTabWithTmpData(activeTab, tmp, filename);
     }
-    state.cblocks_x = tmp.header.cblocks_x;
-    state.cblocks_y = tmp.header.cblocks_y;
-    state.cx = tmp.header.cx;
-    state.cy = tmp.header.cy;
-    state.gameType = (state.cx === 48) ? 'ts' : 'ra2';
-    
+
     // Autoselect palette if not manually selected by the user
     if (!state.paletteSelectedManually && filename && !skipPaletteAutoselect) {
         const ext = filename.split('.').pop().toLowerCase();
@@ -63,100 +149,15 @@ export function loadTmpData(tmp, filename = '', skipPaletteAutoselect = false) {
             applyPaletteById(autoPaletteId, false);
         }
     }
-    
 
-    // Calculate World Bounds
-    state.worldBounds = TmpTsFile.computeBounds(tmp);
-    
-    // Create frames for each tile
-    state.tiles = [];
-    const numTiles = tmp.header.cblocks_x * tmp.header.cblocks_y;
-    
-    const mult = tmp.header.cy / 2;
-    for (let i = 0; i < numTiles; i++) {
-        const tile = tmp.tiles[i];
-        if (!tile) {
-            state.tiles.push({
-                id: generateId(), width: tmp.header.cx, height: tmp.header.cy,
-                data: new Uint8Array(tmp.header.cx * tmp.header.cy).fill(TRANSPARENT_COLOR),
-                tileHeader: null, visible: true, itemMinX: 0, itemMinY: 0, _v: 0
-            });
-            continue;
-        }
-
-        const h = tile.tileHeader;
-        const dx = h.x;
-        const dy = h.y - h.height * mult;
-
-        let minX = dx, minY = dy;
-        let maxX = dx + tmp.header.cx, maxY = dy + tmp.header.cy;
-
-        if (h.has_extra_data && h.cx_extra > 0 && h.cy_extra > 0) {
-            const ex = h.x_extra;
-            const ey = h.y_extra - h.height * mult;
-            minX = Math.min(minX, ex); minY = Math.min(minY, ey);
-            maxX = Math.max(maxX, ex + h.cx_extra); maxY = Math.max(maxY, ey + h.cy_extra);
-        }
-
-        const tw = maxX - minX;
-        const th = maxY - minY;
-
-        state.tiles.push({
-            id: generateId(),
-            width: tw,
-            height: th,
-            itemMinX: minX,
-            itemMinY: minY,
-            diamondX: dx - minX,
-            diamondY: dy - minY,
-            data: TmpTsFile.decodeTileDiamond(tile.data, tmp.header.cx, tmp.header.cy),
-            zData: tile.zData ? TmpTsFile.decodeTileDiamond(tile.zData, tmp.header.cx, tmp.header.cy) : null,
-            damagedData: null,
-            tileHeader: { ...tile.tileHeader },
-            extraImageData: tile.extraImageData,
-            extraZData: tile.extraZData,
-            extraX: h.has_extra_data ? h.x_extra - minX : 0,
-            extraY: h.has_extra_data ? (h.y_extra - h.height * mult) - minY : 0,
-            visible: true,
-            _v: 0
-        });
-    }
-    
-    state.currentTileIdx = -1;
-    state.tileSelection.clear();
-    state.history = [];
-    state.historyPtr = -1;
-    state.hasChanges = false;
-    
-    state.selection = null;
-    state.floatingSelection = null;
-    state.subSelection.clear();
-    state.currentTileKey = null;
     state.paletteVersion++; // Bust all thumbnail caches
-    
     resetFramesList(); // Correctly empty the UI list using unified method
-    
-    // Set Canvas to World Dimensions
-    if (state.worldBounds && state.worldBounds.hasTiles) {
-        state.canvasW = Math.ceil(state.worldBounds.width);
-        state.canvasH = Math.ceil(state.worldBounds.height);
-    } else {
-        state.canvasW = tmp.header.cx;
-        state.canvasH = tmp.header.cy;
-    }
-
     updateCanvasSize();
-    
-    // UI Updates
     updateTilesList(); 
     renderCanvas();
     showEditorInterface();
-    
     updateExtraBtnState();
     if (typeof window.updateUIState === 'function') window.updateUIState();
-
-    // Reset history so the freshly opened file is the only entry
-    // (Ctrl+Z will not erase the file).
     resetHistoryForFreshOpen();
 
     if (elements.tilesList) elements.tilesList.focus();
