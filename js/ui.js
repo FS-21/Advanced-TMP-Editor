@@ -44,13 +44,28 @@ export function stopAnts() {
 
 
 
+export function snapCanvasWrapperToPixel() {
+    if (!elements.canvasWrapper || !state.tmpData || !state.worldBounds) return;
+    elements.canvasWrapper.style.transform = '';
+    const dpr = window.devicePixelRatio || 1;
+    const rect = elements.canvasWrapper.getBoundingClientRect();
+    const fracX = rect.left - (Math.round(rect.left * dpr) / dpr);
+    const fracY = rect.top - (Math.round(rect.top * dpr) / dpr);
+    if (Math.abs(fracX) > 0.001 || Math.abs(fracY) > 0.001) {
+        elements.canvasWrapper.style.transform = `translate(${-fracX}px, ${-fracY}px)`;
+    }
+}
+
 export function updateCanvasSize() {
+    const dpr = window.devicePixelRatio || 1;
     // If we have world bounds, resize canvas to fit the whole TMP
     let cw = state.canvasW;
     let ch = state.canvasH;
 
-    const w = cw * state.zoom;
-    const h = ch * state.zoom;
+    const w = Math.round(cw * state.zoom);
+    const h = Math.round(ch * state.zoom);
+    const cssW = w / dpr;
+    const cssH = h / dpr;
 
     if (elements.mainCanvas) {
         // Safety cap to avoid Out of Memory (OOM) / disappearing canvas in browser
@@ -71,8 +86,8 @@ export function updateCanvasSize() {
 
     [elements.mainCanvas, elements.overlayCanvas].forEach(c => {
         if (!c) return;
-        c.style.width = w + "px";
-        c.style.height = h + "px";
+        c.style.width = cssW + "px";
+        c.style.height = cssH + "px";
         c.style.imageRendering = 'pixelated'; // Ensure sharp 1:1 or integer scaling
         const ctx = c.getContext('2d');
         if (ctx) ctx.imageSmoothingEnabled = false;
@@ -81,6 +96,7 @@ export function updateCanvasSize() {
     if (elements.canvasWrapper) {
         if (!state.tmpData || !state.worldBounds) {
             elements.canvasWrapper.style.display = 'none';
+            elements.canvasWrapper.style.transform = '';
         } else {
             elements.canvasWrapper.style.display = 'block';
             
@@ -88,12 +104,12 @@ export function updateCanvasSize() {
                 const sc = elements.canvasScrollArea;
                 if (sc) sc.style.padding = '0'; // Remove padding for background coverage
                 
-                const viewW = sc ? sc.clientWidth : 800;
-                const viewH = sc ? sc.clientHeight : 600;
+                const viewW = (sc ? sc.clientWidth : 800) * dpr;
+                const viewH = (sc ? sc.clientHeight : 600) * dpr;
                 
                 // Canvas fills visible area, but also expands if image is bigger
-                cw = Math.max(state.worldBounds.width, viewW / state.zoom);
-                ch = Math.max(state.worldBounds.height, viewH / state.zoom);
+                cw = Math.max(state.worldBounds.width, Math.ceil(viewW / state.zoom));
+                ch = Math.max(state.worldBounds.height, Math.ceil(viewH / state.zoom));
 
                 // Center the TMP inside this area
                 const offsetX = (cw - state.worldBounds.width) / 2;
@@ -116,6 +132,8 @@ export function updateCanvasSize() {
 
             const w_scaled = Math.ceil(cw * state.zoom);
             const h_scaled = Math.ceil(ch * state.zoom);
+            const w_css = w_scaled / dpr;
+            const h_css = h_scaled / dpr;
 
             // Apply to canvas
             elements.mainCanvas.width = cw;
@@ -125,17 +143,41 @@ export function updateCanvasSize() {
                 elements.overlayCanvas.height = h_scaled;
             }
             
-            elements.canvasWrapper.style.width = w_scaled + "px";
-            elements.canvasWrapper.style.height = h_scaled + "px";
+            elements.canvasWrapper.style.width = w_css + "px";
+            elements.canvasWrapper.style.height = h_css + "px";
 
             [elements.mainCanvas, elements.overlayCanvas].forEach(c => {
                 if (!c) return;
-                c.style.width = w_scaled + "px";
-                c.style.height = h_scaled + "px";
+                c.style.width = w_css + "px";
+                c.style.height = h_css + "px";
                 const ctx = c.getContext('2d');
                 if (ctx) ctx.imageSmoothingEnabled = false;
             });
+            snapCanvasWrapperToPixel();
         }
+        if (!elements.canvasWrapper._pixelSnapObserverAttached && elements.canvasWrapper.parentElement && typeof ResizeObserver !== 'undefined') {
+            elements.canvasWrapper._pixelSnapObserverAttached = true;
+            const ro = new ResizeObserver(() => snapCanvasWrapperToPixel());
+            ro.observe(elements.canvasWrapper.parentElement);
+        }
+    }
+
+    if (typeof window !== 'undefined' && !window._ateDprListenerAttached) {
+        window._ateDprListenerAttached = true;
+        let lastDpr = window.devicePixelRatio || 1;
+        window.addEventListener('resize', () => {
+            const curDpr = window.devicePixelRatio || 1;
+            if (Math.abs(curDpr - lastDpr) > 0.001) {
+                lastDpr = curDpr;
+                if (state.tmpData && state.worldBounds) {
+                    updateCanvasSize();
+                    renderCanvas();
+                    renderOverlay();
+                }
+            } else {
+                snapCanvasWrapperToPixel();
+            }
+        });
     }
 
     // --- Grid Limit Monitoring ---
@@ -380,19 +422,14 @@ function _renderTileThumbnailImmediate(tile, ctx, w, h, forceFS = false, skipBG 
 
 
 export function updatePixelGrid() {
-    if (!elements.pixelGridOverlay) return;
-
-    // Show grid if toggled ON and zoom >= 400%
-    const shouldShow = state.showGrid && state.zoom >= 4;
-    elements.pixelGridOverlay.style.display = shouldShow ? 'block' : 'none';
-
-    if (shouldShow) {
-        elements.pixelGridOverlay.classList.toggle('grid-dark', state.gridColor === 'dark');
-        elements.pixelGridOverlay.style.backgroundSize = `${state.zoom}px ${state.zoom}px`;
+    if (elements.pixelGridOverlay) {
+        elements.pixelGridOverlay.style.display = 'none';
     }
-
     if (elements.btnToggleGrid) {
         elements.btnToggleGrid.classList.toggle('grid-active', state.showGrid);
+    }
+    if (state.tmpData && state.worldBounds) {
+        renderOverlay();
     }
 }
 
@@ -481,9 +518,10 @@ export function zoomToSelection() {
     const scrollArea = document.getElementById('canvasScrollArea');
     if (!scrollArea) return;
 
-    // Viewport dimensions (scrollArea minus its double padding of 20px)
-    const vw = scrollArea.clientWidth - 40;
-    const vh = scrollArea.clientHeight - 40;
+    // Viewport dimensions in physical pixels (scrollArea minus its double padding of 20px)
+    const dpr = window.devicePixelRatio || 1;
+    const vw = (scrollArea.clientWidth - 40) * dpr;
+    const vh = (scrollArea.clientHeight - 40) * dpr;
 
     const zoomW = (vw / sel.w) * 100;
     const zoomH = (vh / sel.h) * 100;
@@ -497,8 +535,9 @@ export function zoomToSelection() {
 
     // Center scroll area on selection
     setTimeout(() => {
-        const z = zoom / 100;
-        // Selection center relative to canvas (0,0) scaled by zoom
+        const curDpr = window.devicePixelRatio || 1;
+        const z = (zoom / 100) / curDpr;
+        // Selection center relative to canvas (0,0) scaled by CSS zoom
         const selCenterX = (sel.x + sel.w / 2) * z;
         const selCenterY = (sel.y + sel.h / 2) * z;
 
@@ -1228,7 +1267,23 @@ export function renderOverlay(x, y, tool, startPos) {
      const z = state.zoom;
 
     // Ensure we clear the entire physical canvas, regardless of current world bounds
-    ctx.clearRect(0, 0, elements.overlayCanvas.width, elements.overlayCanvas.height);
+    const ow = elements.overlayCanvas.width;
+    const oh = elements.overlayCanvas.height;
+    ctx.clearRect(0, 0, ow, oh);
+
+    if (state.showGrid && z >= 4) {
+        ctx.save();
+        ctx.fillStyle = state.gridColor === 'dark' ? 'rgba(0, 0, 0, 0.45)' : 'rgba(255, 255, 255, 0.15)';
+        const gw = elements.mainCanvas ? elements.mainCanvas.width : state.canvasW;
+        const gh = elements.mainCanvas ? elements.mainCanvas.height : state.canvasH;
+        for (let gx = 0; gx < gw; gx++) {
+            ctx.fillRect(Math.round(gx * z), 0, 1, oh);
+        }
+        for (let gy = 0; gy < gh; gy++) {
+            ctx.fillRect(0, Math.round(gy * z), ow, 1);
+        }
+        ctx.restore();
+    }
 
     // Tile highlights are now drawn pixel-art style in renderCanvas
 
@@ -4836,25 +4891,28 @@ export function setupZoomOptions() {
         }
 
         const container = elements.canvasWrapper.parentElement;
+        const dpr = window.devicePixelRatio || 1;
         const oldZoom = state.zoom;
         const newZoom = val / 100;
+        const oldCssZoom = oldZoom / dpr;
+        const newCssZoom = newZoom / dpr;
 
-        const canvasW = state.canvasW * oldZoom;
-        const canvasH = state.canvasH * oldZoom;
+        const canvasW = state.canvasW * oldCssZoom;
+        const canvasH = state.canvasH * oldCssZoom;
 
         const visualX = (canvasW < container.clientWidth) ? canvasW / 2 : (container.scrollLeft + container.clientWidth / 2);
         const visualY = (canvasH < container.clientHeight) ? canvasH / 2 : (container.scrollTop + container.clientHeight / 2);
 
-        const centerCanvasX = visualX / oldZoom;
-        const centerCanvasY = visualY / oldZoom;
+        const centerCanvasX = visualX / oldCssZoom;
+        const centerCanvasY = visualY / oldCssZoom;
 
         state.zoom = newZoom;
         updateCanvasSize();
         renderCanvas();
         syncZoomUI();
 
-        container.scrollLeft = centerCanvasX * newZoom - container.clientWidth / 2;
-        container.scrollTop = centerCanvasY * newZoom - container.clientHeight / 2;
+        container.scrollLeft = centerCanvasX * newCssZoom - container.clientWidth / 2;
+        container.scrollTop = centerCanvasY * newCssZoom - container.clientHeight / 2;
     };
 
     // Wheel Zoom Support

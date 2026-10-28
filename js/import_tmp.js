@@ -363,9 +363,10 @@ function renderImportFrame(idx) {
     canvas.width = compositeCanvas.width;
     canvas.height = compositeCanvas.height;
     
-    // Ensure CSS allows auto-scaling via the attributes
-    canvas.style.width = '';
-    canvas.style.height = '';
+    // Ensure 1:1 physical pixel preview regardless of Windows DPI scale
+    const dpr = window.devicePixelRatio || 1;
+    canvas.style.width = (compositeCanvas.width / dpr) + 'px';
+    canvas.style.height = (compositeCanvas.height / dpr) + 'px';
 
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = false;
