@@ -44,16 +44,29 @@ export function stopAnts() {
 
 
 
-export function snapCanvasWrapperToPixel() {
-    if (!elements.canvasWrapper || !state.tmpData || !state.worldBounds) return;
-    elements.canvasWrapper.style.transform = '';
+export function snapElementToPixel(el) {
+    if (!el) return;
+    el.style.transform = '';
     const dpr = window.devicePixelRatio || 1;
-    const rect = elements.canvasWrapper.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return;
     const fracX = rect.left - (Math.round(rect.left * dpr) / dpr);
     const fracY = rect.top - (Math.round(rect.top * dpr) / dpr);
     if (Math.abs(fracX) > 0.001 || Math.abs(fracY) > 0.001) {
-        elements.canvasWrapper.style.transform = `translate(${-fracX}px, ${-fracY}px)`;
+        el.style.transform = `translate(${-fracX}px, ${-fracY}px)`;
     }
+}
+
+export function snapSidebarThumbnailsToPixel() {
+    if (elements.tilesList) {
+        elements.tilesList.querySelectorAll('canvas.tile-image-preview, canvas.tile-mask-preview').forEach(snapElementToPixel);
+    }
+}
+
+export function snapCanvasWrapperToPixel() {
+    snapSidebarThumbnailsToPixel();
+    if (!elements.canvasWrapper || !state.tmpData || !state.worldBounds) return;
+    snapElementToPixel(elements.canvasWrapper);
 }
 
 export function updateCanvasSize() {
@@ -173,6 +186,7 @@ export function updateCanvasSize() {
                     updateCanvasSize();
                     renderCanvas();
                     renderOverlay();
+                    updateTilesList();
                 }
             } else {
                 snapCanvasWrapperToPixel();
@@ -1595,12 +1609,13 @@ function _updateTilesListImmediate() {
 
     const items = [];
 
+    const dpr = window.devicePixelRatio || 1;
     populated.forEach((itemInfo, displayIdx) => {
         const { tile, originalIdx } = itemInfo;
 
-        // 1. Base Entry (8px top/bottom padding + border = 18px total logic)
+        // 1. Base Entry (8px top/bottom padding + border = 18px total logic, scaled from physical to CSS px)
         const pH_base = state.cy;
-        const h0 = Math.max(42, pH_base + 18);
+        const h0 = Math.max(42, Math.ceil((pH_base || 24) / dpr) + 18);
 
         items.push({
             tile,
@@ -1611,10 +1626,10 @@ function _updateTilesListImmediate() {
             key: `${originalIdx}_base`
         });
 
-        // 2. Extra Entry (8px top/bottom padding + border = 18px total logic)
+        // 2. Extra Entry (8px top/bottom padding + border = 18px total logic, scaled from physical to CSS px)
         if (tile.tileHeader.has_extra_data && (tile.extraImageData || tile.extraZData)) {
             const pH_extra = tile.tileHeader.cy_extra;
-            const h1 = Math.max(42, pH_extra + 18);
+            const h1 = Math.max(42, Math.ceil((pH_extra || 24) / dpr) + 18);
 
             items.push({
                 tile,
@@ -1648,6 +1663,7 @@ function _updateTilesListImmediate() {
         }
         _updateTileItem(itemEl, itemInfo);
     });
+    snapSidebarThumbnailsToPixel();
 
     // Update Toolbar State
     const hasSelection = state.tileSelection.size > 0;
@@ -1924,14 +1940,24 @@ function _updateTileItem(itemEl, itemInfo) {
     const bW_z = (subType === 'extra' && tile._extraZ_cx && tile.extraZData?.length >= tile._extraZ_cx * tile._extraZ_cy) ? tile._extraZ_cx : pW;
     const bH_z = (subType === 'extra' && tile._extraZ_cy && tile.extraZData?.length >= tile._extraZ_cx * tile._extraZ_cy) ? tile._extraZ_cy : pH;
 
-    if (canvas.width !== bW_img || canvas.height !== bH_img) {
-        canvas.width = bW_img;
-        canvas.height = bH_img;
+    const dpr = window.devicePixelRatio || 1;
+    const safeW_img = bW_img || 1;
+    const safeH_img = bH_img || 1;
+    const safeW_z = bW_z || 1;
+    const safeH_z = bH_z || 1;
+
+    if (canvas.width !== safeW_img || canvas.height !== safeH_img) {
+        canvas.width = safeW_img;
+        canvas.height = safeH_img;
     }
-    if (maskCanvas.width !== bW_z || maskCanvas.height !== bH_z) {
-        maskCanvas.width = bW_z;
-        maskCanvas.height = bH_z;
+    if (maskCanvas.width !== safeW_z || maskCanvas.height !== safeH_z) {
+        maskCanvas.width = safeW_z;
+        maskCanvas.height = safeH_z;
     }
+    canvas.style.width = (safeW_img / dpr) + 'px';
+    canvas.style.height = (safeH_img / dpr) + 'px';
+    maskCanvas.style.width = (safeW_z / dpr) + 'px';
+    maskCanvas.style.height = (safeH_z / dpr) + 'px';
 
     const ctx = canvas.getContext('2d');
     const mCtx = maskCanvas.getContext('2d');
@@ -2971,30 +2997,35 @@ export async function showDeleteConfirmation(items) {
         `;
 
         // Anchor 1: Base Preview
+        const dpr = window.devicePixelRatio || 1;
+        const cdPhysW = Math.max(1, Math.round(64 * dpr));
+        const cdPhysH = Math.max(1, Math.round(32 * dpr));
         const tdBase = row.querySelector('.cd-base');
         const c1 = document.createElement('canvas');
-        c1.width = 60; c1.height = 30;
-        c1.style.width = '64px'; c1.style.height = '32px';
+        c1.width = cdPhysW; c1.height = cdPhysH;
+        c1.style.width = (cdPhysW / dpr) + 'px'; c1.style.height = (cdPhysH / dpr) + 'px';
+        c1.style.boxSizing = 'content-box';
         c1.style.imageRendering = 'pixelated';
         c1.style.background = '#000';
         c1.style.display = 'block';
         // Base border: 1px Neon Green if being deleted, otherwise subtle dark
         c1.style.border = (item.type === 'cell') ? '1px solid var(--accent)' : '1px solid #333';
-        renderTileThumbnail(tile, c1.getContext('2d'), 60, 30, false, false, 'base');
+        renderTileThumbnail(tile, c1.getContext('2d'), cdPhysW, cdPhysH, false, false, 'base');
         tdBase.appendChild(c1);
 
         // Anchor 2: Extra Preview
         const tdExtra = row.querySelector('.cd-extra');
         if (h.has_extra_data || item.type === 'extra') {
              const c2 = document.createElement('canvas');
-             c2.width = 60; c2.height = 30;
-             c2.style.width = '64px'; c2.style.height = '32px';
+             c2.width = cdPhysW; c2.height = cdPhysH;
+             c2.style.width = (cdPhysW / dpr) + 'px'; c2.style.height = (cdPhysH / dpr) + 'px';
+             c2.style.boxSizing = 'content-box';
              c2.style.imageRendering = 'pixelated';
              c2.style.background = '#000';
              c2.style.display = 'block';
              // Extra border: 1px Neon Green if being deleted/cleared, otherwise subtle dark
              c2.style.border = (item.type === 'extra' || item.type === 'cell') ? '1px solid var(--accent)' : '1px solid #333';
-             renderTileThumbnail(tile, c2.getContext('2d'), 60, 30, false, false, 'extra');
+             renderTileThumbnail(tile, c2.getContext('2d'), cdPhysW, cdPhysH, false, false, 'extra');
              tdExtra.appendChild(c2);
         } else {
              tdExtra.innerHTML = '<div style="width:64px; height:32px; display:flex; align-items:center; justify-content:center; color:#333; font-size:9px; border: 1px dashed #222;">-</div>';
@@ -5483,9 +5514,12 @@ function renderExternalTmpLayerPropsPreview(node, frameIdx) {
         const maxExpandX = Math.max(0, -minX, maxX - mainW);
         const maxExpandY = Math.max(0, -minY, maxY - mainH);
 
+        const dpr = window.devicePixelRatio || 1;
         const pad = 10;
         canvas.width = mainW + maxExpandX * 2 + pad * 2;
         canvas.height = mainH + maxExpandY * 2 + pad * 2;
+        canvas.style.width = `${canvas.width / dpr}px`;
+        canvas.style.height = `${canvas.height / dpr}px`;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = bgColor;
@@ -5525,8 +5559,11 @@ function renderExternalTmpLayerPropsPreview(node, frameIdx) {
 
     } else {
         // Just the external TMP
+        const dpr = window.devicePixelRatio || 1;
         canvas.width = shpW;
         canvas.height = shpH;
+        canvas.style.width = `${shpW / dpr}px`;
+        canvas.style.height = `${shpH / dpr}px`;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = bgColor;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
